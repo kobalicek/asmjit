@@ -306,10 +306,10 @@ static inline uint32_t countZeroHalfWords64(uint64_t imm) noexcept {
          uint32_t((imm & 0xFFFF000000000000u) == 0) ;
 }
 
-static uint32_t encodeMovSequence32(uint32_t out[2], uint32_t imm, uint32_t rd) noexcept {
+static uint32_t encodeMovSequence32(uint32_t out[2], uint32_t imm, uint32_t rd, uint32_t x) noexcept {
   ASMJIT_ASSERT(rd <= 31);
 
-  uint32_t kMovZ = 0b01010010100000000000000000000000;
+  uint32_t kMovZ = 0b01010010100000000000000000000000 | (x << 31);
   uint32_t kMovN = 0b00010010100000000000000000000000;
   uint32_t kMovK = 0b01110010100000000000000000000000;
 
@@ -338,7 +338,7 @@ static uint32_t encodeMovSequence32(uint32_t out[2], uint32_t imm, uint32_t rd) 
   return 2;
 }
 
-static uint32_t encodeMovSequence64(uint32_t out[4], uint64_t imm, uint32_t rd) noexcept {
+static uint32_t encodeMovSequence64(uint32_t out[4], uint64_t imm, uint32_t rd, uint32_t x) noexcept {
   ASMJIT_ASSERT(rd <= 31);
 
   uint32_t kMovZ = 0b11010010100000000000000000000000;
@@ -346,7 +346,7 @@ static uint32_t encodeMovSequence64(uint32_t out[4], uint64_t imm, uint32_t rd) 
   uint32_t kMovK = 0b11110010100000000000000000000000;
 
   if (imm <= 0xFFFFFFFFu)
-    return encodeMovSequence32(out, uint32_t(imm), rd);
+    return encodeMovSequence32(out, uint32_t(imm), rd, x);
 
   uint32_t zhw = countZeroHalfWords64( imm);
   uint32_t ohw = countZeroHalfWords64(~imm);
@@ -364,6 +364,9 @@ static uint32_t encodeMovSequence64(uint32_t out[4], uint64_t imm, uint32_t rd) 
       op = kMovK;
     }
 
+    // This should not happen - zero should be handled by encodeMovSequence32().
+    ASMJIT_ASSERT(count > 0);
+
     return count;
   }
   else {
@@ -379,6 +382,10 @@ static uint32_t encodeMovSequence64(uint32_t out[4], uint64_t imm, uint32_t rd) 
       out[count++] = op | (hwIndex << 21) | ((hwImm ^ negMask) << 5) | rd;
       op = kMovK;
       negMask = 0;
+    }
+
+    if (count == 0) {
+      out[count++] = kMovN | ((0xFFFF ^ negMask) << 5) | rd;
     }
 
     return count;
@@ -1060,7 +1067,7 @@ Error Assembler::_emit(uint32_t instId, const Operand_& o0, const Operand_& o1, 
           immValue &= 0xFFFFFFFFu;
 
         // Prefer a single MOVN/MOVZ instruction over a logical instruction.
-        multipleOpCount = encodeMovSequence64(multipleOpData, immValue, o0.id() & 31);
+        multipleOpCount = encodeMovSequence64(multipleOpData, immValue, o0.id() & 31, x);
         if (multipleOpCount == 1 && !o0.as<Gp>().isSP()) {
           opcode.reset(multipleOpData[0]);
           goto EmitOp;
@@ -4815,6 +4822,7 @@ EmitOp_Rd0_Rn5_Rm16:
 
 EmitOp_Multiple:
   {
+    ASMJIT_ASSERT(multipleOpCount > 0);
     err = writer.ensureSpace(this, multipleOpCount * 4u);
     if (ASMJIT_UNLIKELY(err))
       goto Failed;
