@@ -167,7 +167,11 @@ ASMJIT_FAVOR_SIZE Error initFuncDetail(FuncDetail& func, const FuncSignature& si
             gpzPos++;
           }
           else {
+#if defined(__APPLE__)
+            uint32_t size = Type::sizeOf(typeId);
+#else
             uint32_t size = Support::max<uint32_t>(Type::sizeOf(typeId), registerSize);
+#endif
             arg.assignStackOffset(int32_t(stackOffset));
             stackOffset += size;
           }

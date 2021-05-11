@@ -33,6 +33,13 @@
   #include <sys/auxv.h>
 #endif
 
+#if defined(__APPLE__)
+  #include <mach/machine.h>
+  #include <sys/errno.h>
+  #include <sys/types.h>
+  #include <sys/sysctl.h>
+#endif
+
 ASMJIT_BEGIN_SUB_NAMESPACE(arm)
 
 // ============================================================================
@@ -329,11 +336,136 @@ ASMJIT_FAVOR_SIZE void detectCpu(CpuInfo& cpu) noexcept {
 }
 #endif // __linux__
 
+#if defined(__APPLE__)
+
+ASMJIT_FAVOR_SIZE void detectCpu(CpuInfo& cpu) noexcept {
+
+  // use sysctlbyname() to obtain CPU family; match on it as there is no good way to detect individual features
+  uint32_t cpuFamily = 0;
+  size_t l = sizeof(cpuFamily);
+  int res;
+  if ((res = sysctlbyname("hw.cpufamily", &cpuFamily, &l, NULL, 0)) != 0) {
+    fprintf(stderr, "Error with sysctlbyname %d\n", errno);
+    exit(1);
+  }
+  populateBaseFeatures(cpu);
+
+  // TODO: so far, only A13/A14/M1 is reasonably complete.
+  switch(cpuFamily) {
+#if ASMJIT_ARCH_ARM == 32
+    case CPUFAMILY_ARM_SWIFT:
+    default:
+      cpu.addFeature(Features::kARMv6);
+      cpu.addFeature(Features::kARMv7);
+      
+      cpu.addFeature(Features::kVFPv2);
+      cpu.addFeature(Features::kVFPv3);
+      cpu.addFeature(Features::kVFPv4); //FeatureVFP4
+
+      cpu.addFeature(Features::kASIMD); //FeatureNEONForFP
+
+      // FeatureHasRetAddrStack,
+      
+      // FeatureUseWideStrideVFP,
+      // FeatureMP,
+      // FeatureHWDivThumb,
+      // FeatureHWDivARM,
+      // FeatureAvoidPartialCPSR,
+      // FeatureAvoidMOVsShOp,
+      // FeatureHasSlowFPVMLx,
+      // FeatureHasSlowFPVFMx,
+      // FeatureHasVMLxHazards,
+      // FeatureProfUnpredicate,
+      // FeaturePrefISHSTBarrier,
+      // FeatureSlowOddRegister,
+      // FeatureSlowLoadDSubreg,
+      // FeatureSlowVGETLNi32,
+      // FeatureSlowVDUP32,
+      // FeatureUseMISched,
+      // FeatureNoPostRASched
+      break;
+
+/*
+  // AArch64 is based on ARMv8 and later.
+  cpu.addFeature(Features::kARMv6);
+  cpu.addFeature(Features::kARMv7);
+  cpu.addFeature(Features::kARMv8);
+
+  // AArch64 comes with these features by default.
+  cpu.addFeature(Features::kVFPv2);
+  cpu.addFeature(Features::kVFPv3);
+  cpu.addFeature(Features::kVFPv4);
+  cpu.addFeature(Features::kASIMD);
+  cpu.addFeature(Features::kIDIVA);
+*/
+
+#elif ASMJIT_ARCH_ARM == 64
+    case CPUFAMILY_ARM_FIRESTORM_ICESTORM: // A14 or M1
+    case CPUFAMILY_ARM_LIGHTNING_THUNDER: // A13
+      cpu.addFeature(Features::kARMv8_4); // HasV8_4aOps
+      cpu.addFeature(Features::kFP16FML); // FeatureFP16FML
+      cpu.addFeature(Features::kFP16FULL); // FeatureFullFP16
+      cpu.addFeature(Features::kSHA3); // FeatureSHA3
+      break;
+      // Linux: midr=0x410f0000, revidr=0
+      // Features : fp asimd evtstrm aes pmull sha1 sha2 crc32
+      //            atomics fphp asimdhp cpuid asimdrdm jscvt
+      //            fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm
+      //            dit uscat ilrcpc flagm ssbs
+      //            sb paca pacg dcpodp flagm2 frint
+
+    case CPUFAMILY_ARM_VORTEX_TEMPEST: // A12
+      cpu.addFeature(Features::kFP16FULL); // FeatureFullFP16
+      cpu.addFeature(Features::kARMv8_3); // HasV8_3aOps
+      break;
+
+    case CPUFAMILY_ARM_MONSOON_MISTRAL: // A11
+      cpu.addFeature(Features::kFP16FULL); // FeatureFullFP16
+      cpu.addFeature(Features::kARMv8_2);  // HasV8_2aOps
+      break;
+
+    case CPUFAMILY_ARM_HURRICANE: // A10
+      cpu.addFeature(Features::kCRC32); // FeatureCRC
+      cpu.addFeature(Features::kRDMA); // FeatureRDM
+      // FeaturePAN
+      // FeatureLOR
+      // FeatureVH
+      break;
+
+    case CPUFAMILY_ARM_TWISTER: // A9
+    case CPUFAMILY_ARM_TYPHOON: // A8
+    case CPUFAMILY_ARM_CYCLONE: // A7
+    default:
+      // FeatureAlternateSExtLoadCVTF32Pattern
+      // FeatureArithmeticBccFusion
+      // FeatureArithmeticCbzFusion
+      // FeatureCrypto
+      cpu.addFeature(Features::kSHA1);
+      cpu.addFeature(Features::kSHA2);
+      cpu.addFeature(Features::kAES);
+      // FeatureDisableLatencySchedHeuristic
+      // FeatureFPARMv8 - included in AArch64
+      // FeatureFuseAES
+      // FeatureFuseCryptoEOR
+      // FeatureNEON
+      // FeaturePerfMon
+      // FeatureZCRegMove
+      // FeatureZCZeroing
+      // FeatureZCZeroingFPWorkaround -- CYCLONE ONLY
+      break;
+
+#endif
+  }
+  populateBaseFeaturesByVersion(cpu);
+}
+
+#endif // __APPLE__
+
 // ============================================================================
 // [asmjit::arm::Features - Detect - Unknown]
 // ============================================================================
 
-#if !defined(_WIN32) && !defined(__linux__)
+#if !defined(_WIN32) && !defined(__linux__) && !defined(__APPLE__)
   #error "[asmjit] arm::detectCpu() - Unsupported OS."
 #endif
 

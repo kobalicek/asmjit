@@ -48,6 +48,8 @@
     #include <TargetConditionals.h>
     #if TARGET_OS_OSX
       #include <sys/utsname.h>
+    // We also need this for sys_icache_invalidate().
+    #include <libkern/OSCacheControl.h>
     #endif
     // Older SDK doesn't define `MAP_JIT`.
     #ifndef MAP_JIT
