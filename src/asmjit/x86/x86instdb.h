@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_X86_X86INSTDB_H_INCLUDED
 #define ASMJIT_X86_X86INSTDB_H_INCLUDED
@@ -34,10 +16,6 @@ ASMJIT_BEGIN_SUB_NAMESPACE(x86)
 //! Instruction database (X86).
 namespace InstDB {
 
-// ============================================================================
-// [asmjit::x86::InstDB::Mode]
-// ============================================================================
-
 //! Describes which mode is supported by an instruction or instruction signature.
 enum Mode : uint32_t {
   //! Invalid mode.
@@ -50,14 +28,10 @@ enum Mode : uint32_t {
   kModeAny = 0x03u
 };
 
-static constexpr uint32_t modeFromArch(uint32_t arch) noexcept {
-  return arch == Environment::kArchX86 ? kModeX86 :
-         arch == Environment::kArchX64 ? kModeX64 : kModeNone;
+static constexpr uint32_t modeFromArch(Arch arch) noexcept {
+  return arch == Arch::kX86 ? kModeX86 :
+         arch == Arch::kX64 ? kModeX64 : kModeNone;
 }
-
-// ============================================================================
-// [asmjit::x86::InstDB::OpFlags]
-// ============================================================================
 
 //! Operand flags (X86).
 enum OpFlags : uint32_t {
@@ -102,10 +76,6 @@ enum OpFlags : uint32_t {
   kOpImplicit              = 0x80000000u  //!< Operand is implicit.
 };
 
-// ============================================================================
-// [asmjit::x86::InstDB::MemFlags]
-// ============================================================================
-
 //! Memory operand flags (X86).
 enum MemFlags : uint32_t {
   // NOTE: Instruction uses either scalar or vector memory operands, they never
@@ -137,10 +107,6 @@ enum MemFlags : uint32_t {
   kMemOpMib                = 0x4000u,     //!< Operand must be MIB (base+index) pointer.
   kMemOpTMem               = 0x8000u      //!< Operand is a sib_mem (ADX memory operand).
 };
-
-// ============================================================================
-// [asmjit::x86::InstDB::Flags]
-// ============================================================================
 
 //! Instruction flags (X86).
 //!
@@ -195,11 +161,7 @@ enum Flags : uint32_t {
   kFlagEvexTransformable   = 0x10000000u  //!< VEX instruction that can be transformed to a compatible EVEX instruction.
 };
 
-// ============================================================================
-// [asmjit::x86::InstDB::Avx512Flags]
-// ============================================================================
-
-//! AVX512 flags.
+//! AVX-512 flags.
 enum Avx512Flags : uint32_t {
   kAvx512Flag_             = 0x00000000u, //!< Internally used in tables, has no meaning.
   kAvx512FlagK             = 0x00000001u, //!< Supports masking {k1..k7}.
@@ -211,10 +173,6 @@ enum Avx512Flags : uint32_t {
   kAvx512FlagT4X           = 0x00000080u  //!< Operates on a vector of consecutive registers (AVX512_4FMAPS and AVX512_4VNNIW).
 };
 
-// ============================================================================
-// [asmjit::x86::InstDB::SingleRegCase]
-// ============================================================================
-
 enum SingleRegCase : uint32_t {
   //! No special handling.
   kSingleRegNone = 0,
@@ -224,14 +182,10 @@ enum SingleRegCase : uint32_t {
   kSingleRegWO = 2
 };
 
-// ============================================================================
-// [asmjit::x86::InstDB::InstSignature / OpSignature]
-// ============================================================================
-
 //! Operand signature (X86).
 //!
-//! Contains all possible operand combinations, memory size information, and
-//! a fixed register id (or `BaseReg::kIdBad` if fixed id isn't required).
+//! Contains all possible operand combinations, memory size information, and a fixed register id (or `BaseReg::kIdBad`
+//! if fixed id isn't required).
 struct OpSignature {
   //! Operand flags.
   uint32_t opFlags;
@@ -247,8 +201,8 @@ ASMJIT_VARAPI const OpSignature _opSignatureTable[];
 
 //! Instruction signature (X86).
 //!
-//! Contains a sequence of operands' combinations and other metadata that defines
-//! a single instruction. This data is used by instruction validator.
+//! Contains a sequence of operands' combinations and other metadata that defines a single instruction. This data is
+//! used by instruction validator.
 struct InstSignature {
   //! Count of operands in `opIndex` (0..6).
   uint8_t opCount : 3;
@@ -264,10 +218,6 @@ struct InstSignature {
 
 ASMJIT_VARAPI const InstSignature _instSignatureTable[];
 
-// ============================================================================
-// [asmjit::x86::InstDB::CommonInfo]
-// ============================================================================
-
 //! Instruction common information (X86)
 //!
 //! Aggregated information shared across one or more instruction.
@@ -280,24 +230,23 @@ struct CommonInfo {
   uint32_t _iSignatureIndex : 11;
   //! Number of relevant `ISignature` entries.
   uint32_t _iSignatureCount : 5;
-  //! Control type, see `ControlType`.
-  uint32_t _controlType : 3;
+  //! Instruction control flow category, see \ref InstControlFlow.
+  uint32_t _controlFlow : 3;
   //! Specifies what happens if all source operands share the same register.
   uint32_t _singleRegCase : 2;
 
-  // --------------------------------------------------------------------------
-  // [Accessors]
-  // --------------------------------------------------------------------------
+  //! \name Accessors
+  //! \{
 
   //! Returns instruction flags, see \ref Flags.
   inline uint32_t flags() const noexcept { return _flags; }
   //! Tests whether the instruction has a `flag`, see \ref Flags.
-  inline bool hasFlag(uint32_t flag) const noexcept { return (_flags & flag) != 0; }
+  inline bool hasFlag(uint32_t flag) const noexcept { return Support::test(_flags, flag); }
 
   //! Returns instruction AVX-512 flags, see \ref Avx512Flags.
   inline uint32_t avx512Flags() const noexcept { return _avx512Flags; }
   //! Tests whether the instruction has an AVX-512 `flag`, see \ref Avx512Flags.
-  inline bool hasAvx512Flag(uint32_t flag) const noexcept { return (_avx512Flags & flag) != 0; }
+  inline bool hasAvx512Flag(uint32_t flag) const noexcept { return Support::test(_avx512Flags, flag); }
 
   //! Tests whether the instruction is FPU instruction.
   inline bool isFpu() const noexcept { return hasFlag(kFlagFpu); }
@@ -363,17 +312,15 @@ struct CommonInfo {
   inline const InstSignature* signatureData() const noexcept { return _instSignatureTable + _iSignatureIndex; }
   inline const InstSignature* signatureEnd() const noexcept { return _instSignatureTable + _iSignatureIndex + _iSignatureCount; }
 
-  //! Returns the control-flow type of the instruction.
-  inline uint32_t controlType() const noexcept { return _controlType; }
+  //! Returns a control flow category of the instruction.
+  inline InstControlFlow controlFlow() const noexcept { return (InstControlFlow)_controlFlow; }
 
   inline uint32_t singleRegCase() const noexcept { return _singleRegCase; }
+
+  //! \}
 };
 
 ASMJIT_VARAPI const CommonInfo _commonInfoTable[];
-
-// ============================================================================
-// [asmjit::x86::InstDB::InstInfo]
-// ============================================================================
 
 //! Instruction information (X86).
 struct InstInfo {
@@ -394,9 +341,8 @@ struct InstInfo {
   //! Index to \ref _altOpcodeTable that contains a full alternative opcode.
   uint8_t _altOpcodeIndex;
 
-  // --------------------------------------------------------------------------
-  // [Accessors]
-  // --------------------------------------------------------------------------
+  //! \name Accessors
+  //! \{
 
   //! Returns common information, see `CommonInfo`.
   inline const CommonInfo& commonInfo() const noexcept { return _commonInfoTable[_commonInfoIndex]; }
@@ -465,7 +411,7 @@ struct InstInfo {
   inline bool hasAvx512B64() const noexcept { return hasAvx512Flag(kAvx512FlagB64); }
 
   //! Gets the control-flow type of the instruction.
-  inline uint32_t controlType() const noexcept { return commonInfo().controlType(); }
+  inline InstControlFlow controlFlow() const noexcept { return commonInfo().controlFlow(); }
   inline uint32_t singleRegCase() const noexcept { return commonInfo().singleRegCase(); }
 
   inline uint32_t signatureIndex() const noexcept { return commonInfo().signatureIndex(); }
@@ -473,11 +419,13 @@ struct InstInfo {
 
   inline const InstSignature* signatureData() const noexcept { return commonInfo().signatureData(); }
   inline const InstSignature* signatureEnd() const noexcept { return commonInfo().signatureEnd(); }
+
+  //! \}
 };
 
 ASMJIT_VARAPI const InstInfo _instInfoTable[];
 
-static inline const InstInfo& infoById(uint32_t instId) noexcept {
+static inline const InstInfo& infoById(InstId instId) noexcept {
   ASMJIT_ASSERT(Inst::isDefinedId(instId));
   return _instInfoTable[instId];
 }

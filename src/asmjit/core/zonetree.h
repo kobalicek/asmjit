@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_ZONETREE_H_INCLUDED
 #define ASMJIT_CORE_ZONETREE_H_INCLUDED
@@ -30,10 +12,6 @@ ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_zone
 //! \{
-
-// ============================================================================
-// [asmjit::ZoneTreeNode]
-// ============================================================================
 
 //! RB-Tree node.
 //!
@@ -123,10 +101,6 @@ public:
   //! \}
 };
 
-// ============================================================================
-// [asmjit::ZoneTree]
-// ============================================================================
-
 //! RB-Tree.
 template<typename NodeT>
 class ZoneTree {
@@ -164,7 +138,7 @@ public:
     std::swap(_root, other._root);
   }
 
-  template<typename CompareT = Support::Compare<Support::kSortAscending>>
+  template<typename CompareT = Support::Compare<Support::SortOrder::kAscending>>
   void insert(NodeT* node, const CompareT& cmp = CompareT()) noexcept {
     // Node to insert must not contain garbage.
     ASMJIT_ASSERT(!node->hasLeft());
@@ -176,18 +150,18 @@ public:
       return;
     }
 
-    ZoneTreeNode head;         // False root node,
-    head._setRight(_root);     // having root on the right.
+    ZoneTreeNode head;           // False root node,
+    head._setRight(_root);       // having root on the right.
 
-    ZoneTreeNode* g = nullptr; // Grandparent.
-    ZoneTreeNode* p = nullptr; // Parent.
-    ZoneTreeNode* t = &head;   // Iterator.
-    ZoneTreeNode* q = _root;   // Query.
+    ZoneTreeNode* g = nullptr;   // Grandparent.
+    ZoneTreeNode* p = nullptr;   // Parent.
+    ZoneTreeNode* t = &head;     // Iterator.
+    ZoneTreeNode* q = _root;     // Query.
 
-    size_t dir = 0;            // Direction for accessing child nodes.
-    size_t last = 0;           // Not needed to initialize, but makes some tools happy.
+    size_t dir = 0;              // Direction for accessing child nodes.
+    size_t last = 0;             // Not needed to initialize, but makes some tools happy.
 
-    node->_makeRed();          // New nodes are always red and violations fixed appropriately.
+    node->_makeRed();            // New nodes are always red and violations fixed appropriately.
 
     // Search down the tree.
     for (;;) {
@@ -229,7 +203,7 @@ public:
   }
 
   //! Remove node from RBTree.
-  template<typename CompareT = Support::Compare<Support::kSortAscending>>
+  template<typename CompareT = Support::Compare<Support::SortOrder::kAscending>>
   void remove(ZoneTreeNode* node, const CompareT& cmp = CompareT()) noexcept {
     ZoneTreeNode head;           // False root node,
     head._setRight(_root);       // having root on the right.
@@ -304,10 +278,9 @@ public:
     p->_setChild(p->_getRight() == q,
                  q->_getChild(q->_getLeft() == nullptr));
 
-    // NOTE: The original algorithm used a trick to just copy 'key/value' to
-    // `f` and mark `q` for deletion. But this is unacceptable here as we
-    // really want to destroy the passed `node`. So, we have to make sure that
-    // we have really removed `f` and not `q`.
+    // NOTE: The original algorithm used a trick to just copy 'key/value' to `f` and mark `q` for deletion. But this
+    // is unacceptable here as we really want to destroy the passed `node`. So, we have to make sure that we have
+    // really removed `f` and not `q`.
     if (f != q) {
       ASMJIT_ASSERT(f != &head);
       ASMJIT_ASSERT(f != gf);
@@ -337,8 +310,8 @@ public:
     if (_root) _root->_makeBlack();
   }
 
-  template<typename KeyT, typename CompareT = Support::Compare<Support::kSortAscending>>
-  ASMJIT_INLINE NodeT* get(const KeyT& key, const CompareT& cmp = CompareT()) const noexcept {
+  template<typename KeyT, typename CompareT = Support::Compare<Support::SortOrder::kAscending>>
+  inline NodeT* get(const KeyT& key, const CompareT& cmp = CompareT()) const noexcept {
     ZoneTreeNode* node = _root;
     while (node) {
       auto result = cmp(*static_cast<const NodeT*>(node), key);
@@ -359,7 +332,7 @@ public:
   static inline bool _isValidRed(ZoneTreeNode* node) noexcept { return ZoneTreeNode::_isValidRed(node); }
 
   //! Single rotation.
-  static ASMJIT_INLINE ZoneTreeNode* _singleRotate(ZoneTreeNode* root, size_t dir) noexcept {
+  static inline ZoneTreeNode* _singleRotate(ZoneTreeNode* root, size_t dir) noexcept {
     ZoneTreeNode* save = root->_getChild(!dir);
     root->_setChild(!dir, save->_getChild(dir));
     save->_setChild( dir, root);
@@ -369,7 +342,7 @@ public:
   }
 
   //! Double rotation.
-  static ASMJIT_INLINE ZoneTreeNode* _doubleRotate(ZoneTreeNode* root, size_t dir) noexcept {
+  static inline ZoneTreeNode* _doubleRotate(ZoneTreeNode* root, size_t dir) noexcept {
     root->_setChild(!dir, _singleRotate(root->_getChild(!dir), !dir));
     return _singleRotate(root, dir);
   }

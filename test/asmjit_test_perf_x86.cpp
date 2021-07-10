@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #include <asmjit/core.h>
 
@@ -353,7 +335,7 @@ static void generateGpSequence(BaseEmitter& emitter, InstForm form, bool emitPro
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -379,7 +361,7 @@ static void generateGpSequence(BaseEmitter& emitter, InstForm form, bool emitPro
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -404,7 +386,7 @@ static void generateGpSequence(BaseEmitter& emitter, InstForm form, bool emitPro
     Gp c = cc.newIntPtr("c");
     Gp d = cc.newIntPtr("d");
 
-    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConvId::kHost));
     generateGpSequenceInternal(cc, form, a, b, c, d);
     cc.endFunc();
   }
@@ -945,7 +927,7 @@ static void generateSseSequence(BaseEmitter& emitter, InstForm form, bool emitPr
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -966,7 +948,7 @@ static void generateSseSequence(BaseEmitter& emitter, InstForm form, bool emitPr
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -992,7 +974,7 @@ static void generateSseSequence(BaseEmitter& emitter, InstForm form, bool emitPr
     Xmm c = cc.newXmm("c");
     Xmm d = cc.newXmm("d");
 
-    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConvId::kHost));
     generateSseSequenceInternal(cc, form, gp, a, b, c, d);
     cc.endFunc();
   }
@@ -2115,7 +2097,7 @@ static void generateAvxSequence(BaseEmitter& emitter, InstForm form, bool emitPr
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -2136,7 +2118,7 @@ static void generateAvxSequence(BaseEmitter& emitter, InstForm form, bool emitPr
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -2162,7 +2144,7 @@ static void generateAvxSequence(BaseEmitter& emitter, InstForm form, bool emitPr
     Ymm c = cc.newYmm("c");
     Ymm d = cc.newYmm("d");
 
-    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConvId::kHost));
     generateAvxSequenceInternal(cc, form, gp, a, b, c, d);
     cc.endFunc();
   }
@@ -4867,7 +4849,7 @@ static void generateAvx512Sequence(BaseEmitter& emitter, InstForm form, bool emi
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -4888,7 +4870,7 @@ static void generateAvx512Sequence(BaseEmitter& emitter, InstForm form, bool emi
 
     if (emitPrologEpilog) {
       FuncDetail func;
-      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConv::kIdHost), cc.environment());
+      func.init(FuncSignatureT<void, void*, const void*, size_t>(CallConvId::kHost), cc.environment());
 
       FuncFrame frame;
       frame.init(func);
@@ -4918,7 +4900,7 @@ static void generateAvx512Sequence(BaseEmitter& emitter, InstForm form, bool emi
     KReg kB = cc.newKq("kB");
     KReg kC = cc.newKq("kC");
 
-    cc.addFunc(FuncSignatureT<void>(CallConv::kIdHost));
+    cc.addFunc(FuncSignatureT<void>(CallConvId::kHost));
     generateAvx512SequenceInternal(cc, form, gp, kA, kB, kC, vecA, vecB, vecC, vecD);
     cc.endFunc();
   }
@@ -4926,7 +4908,7 @@ static void generateAvx512Sequence(BaseEmitter& emitter, InstForm form, bool emi
 }
 
 template<typename EmitterFn>
-static void benchmarkX86Function(uint32_t arch, uint32_t numIterations, const char* description, const EmitterFn& emitterFn) noexcept {
+static void benchmarkX86Function(Arch arch, uint32_t numIterations, const char* description, const EmitterFn& emitterFn) noexcept {
   CodeHolder code;
   printf("%s:\n", description);
 
@@ -4935,12 +4917,12 @@ static void benchmarkX86Function(uint32_t arch, uint32_t numIterations, const ch
   });
 
   bench<x86::Assembler>(code, arch, numIterations, "[validated]", [&](x86::Assembler& cc) {
-    cc.addValidationOptions(BaseEmitter::kValidationOptionAssembler);
+    cc.addValidationOptions(ValidationOptions::kValidateAssembler);
     emitterFn(cc, false);
   });
 
   bench<x86::Assembler>(code, arch, numIterations, "[prolog/epilog]", [&](x86::Assembler& cc) {
-    cc.addValidationOptions(BaseEmitter::kValidationOptionAssembler);
+    cc.addValidationOptions(ValidationOptions::kValidateAssembler);
     emitterFn(cc, true);
   });
 
@@ -4978,10 +4960,10 @@ void benchmarkX86Emitters(uint32_t numIterations, bool testX86, bool testX64) {
   uint32_t i = 0;
   uint32_t n = 0;
 
-  uint32_t archs[2] {};
+  Arch archs[2] {};
 
-  if (testX86) archs[n++] = Environment::kArchX86;
-  if (testX64) archs[n++] = Environment::kArchX64;
+  if (testX86) archs[n++] = Arch::kX86;
+  if (testX64) archs[n++] = Arch::kX64;
 
   for (i = 0; i < n; i++) {
     static const char description[] = "GpSequence<Reg> (Sequence of GP instructions - reg-only)";

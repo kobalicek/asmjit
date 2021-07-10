@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #include <asmjit/core.h>
 
@@ -52,7 +34,7 @@ static void makeRawFunc(x86::Emitter* emitter) noexcept {
 
   // Create and initialize `FuncDetail` and `FuncFrame`.
   FuncDetail func;
-  func.init(FuncSignatureT<void, int*, const int*, const int*>(CallConv::kIdHost), emitter->environment());
+  func.init(FuncSignatureT<void, int*, const int*, const int*>(CallConvId::kHost), emitter->environment());
 
   FuncFrame frame;
   frame.init(func);
@@ -89,7 +71,7 @@ static void makeCompiledFunc(x86::Compiler* cc) noexcept {
   x86::Xmm vec0 = cc->newXmm();
   x86::Xmm vec1 = cc->newXmm();
 
-  cc->addFunc(FuncSignatureT<void, int*, const int*, const int*>(CallConv::kIdHost));
+  cc->addFunc(FuncSignatureT<void, int*, const int*, const int*>(CallConvId::kHost));
   cc->setArg(0, dst);
   cc->setArg(1, src_a);
   cc->setArg(2, src_b);
@@ -102,10 +84,10 @@ static void makeCompiledFunc(x86::Compiler* cc) noexcept {
 }
 #endif
 
-static uint32_t testFunc(JitRuntime& rt, uint32_t emitterType) noexcept {
+static uint32_t testFunc(JitRuntime& rt, EmitterType emitterType) noexcept {
 #ifndef ASMJIT_NO_LOGGING
   FileLogger logger(stdout);
-  logger.setIndentation(FormatOptions::kIndentationCode, 2);
+  logger.setIndentation(FormatIndentationGroup::kCode, 2);
 #endif
 
   CodeHolder code;
@@ -117,7 +99,11 @@ static uint32_t testFunc(JitRuntime& rt, uint32_t emitterType) noexcept {
 
   Error err = kErrorOk;
   switch (emitterType) {
-    case BaseEmitter::kTypeAssembler: {
+    case EmitterType::kNone: {
+      break;
+    }
+
+    case EmitterType::kAssembler: {
       printf("Using x86::Assembler:\n");
       x86::Assembler a(&code);
       makeRawFunc(a.as<x86::Emitter>());
@@ -125,7 +111,7 @@ static uint32_t testFunc(JitRuntime& rt, uint32_t emitterType) noexcept {
     }
 
 #ifndef ASMJIT_NO_BUILDER
-    case BaseEmitter::kTypeBuilder: {
+    case EmitterType::kBuilder: {
       printf("Using x86::Builder:\n");
       x86::Builder cb(&code);
       makeRawFunc(cb.as<x86::Emitter>());
@@ -140,7 +126,7 @@ static uint32_t testFunc(JitRuntime& rt, uint32_t emitterType) noexcept {
 #endif
 
 #ifndef ASMJIT_NO_COMPILER
-    case BaseEmitter::kTypeCompiler: {
+    case EmitterType::kCompiler: {
       printf("Using x86::Compiler:\n");
       x86::Compiler cc(&code);
       makeCompiledFunc(&cc);
@@ -187,14 +173,14 @@ int main() {
   JitRuntime rt;
   unsigned nFailed = 0;
 
-  nFailed += testFunc(rt, BaseEmitter::kTypeAssembler);
+  nFailed += testFunc(rt, EmitterType::kAssembler);
 
 #ifndef ASMJIT_NO_BUILDER
-  nFailed += testFunc(rt, BaseEmitter::kTypeBuilder);
+  nFailed += testFunc(rt, EmitterType::kBuilder);
 #endif
 
 #ifndef ASMJIT_NO_COMPILER
-  nFailed += testFunc(rt, BaseEmitter::kTypeCompiler);
+  nFailed += testFunc(rt, EmitterType::kCompiler);
 #endif
 
   if (!nFailed)

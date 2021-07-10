@@ -1,32 +1,13 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_CODEHOLDER_H_INCLUDED
 #define ASMJIT_CORE_CODEHOLDER_H_INCLUDED
 
 #include "../core/archtraits.h"
 #include "../core/codebuffer.h"
-#include "../core/datatypes.h"
 #include "../core/errorhandler.h"
 #include "../core/operand.h"
 #include "../core/string.h"
@@ -43,65 +24,41 @@ ASMJIT_BEGIN_NAMESPACE
 //! \addtogroup asmjit_core
 //! \{
 
-// ============================================================================
-// [Forward Declarations]
-// ============================================================================
-
 class BaseEmitter;
 class CodeHolder;
 class LabelEntry;
 class Logger;
 
-// ============================================================================
-// [asmjit::AlignMode]
-// ============================================================================
-
-//! Align mode.
-enum AlignMode : uint32_t {
-  //! Align executable code.
-  kAlignCode = 0,
-  //! Align non-executable code.
-  kAlignData = 1,
-  //! Align by a sequence of zeros.
-  kAlignZero = 2,
-  //! Count of alignment modes.
-  kAlignCount = 3
+//! Operator type that can be used within an \ref Expression.
+enum class ExpressionOpType : uint8_t {
+  //! Addition.
+  kAdd = 0,
+  //! Subtraction.
+  kSub = 1,
+  //! Multiplication
+  kMul = 2,
+  //! Logical left shift.
+  kSll = 3,
+  //! Logical right shift.
+  kSrl = 4,
+  //! Arithmetic right shift.
+  kSra = 5
 };
 
-// ============================================================================
-// [asmjit::Expression]
-// ============================================================================
+//! Value tyoe that can be used within an \ref Expression.
+enum class ExpressionValueType : uint8_t {
+  //! No value or invalid.
+  kNone = 0,
+  //! Value is 64-bit unsigned integer (constant).
+  kConstant = 1,
+  //! Value is \ref LabelEntry, which references a \ref Label.
+  kLabel = 2,
+  //! Value is \ref Expression
+  kExpression = 3
+};
 
 //! Expression node that can reference constants, labels, and another expressions.
 struct Expression {
-  //! Operation type.
-  enum OpType : uint8_t {
-    //! Addition.
-    kOpAdd = 0,
-    //! Subtraction.
-    kOpSub = 1,
-    //! Multiplication
-    kOpMul = 2,
-    //! Logical left shift.
-    kOpSll = 3,
-    //! Logical right shift.
-    kOpSrl = 4,
-    //! Arithmetic right shift.
-    kOpSra = 5
-  };
-
-  //! Type of \ref Value.
-  enum ValueType : uint8_t {
-    //! No value or invalid.
-    kValueNone = 0,
-    //! Value is 64-bit unsigned integer (constant).
-    kValueConstant = 1,
-    //! Value is \ref LabelEntry, which references a \ref Label.
-    kValueLabel = 2,
-    //! Value is \ref Expression
-    kValueExpression = 3
-  };
-
   //! Expression value.
   union Value {
     //! Constant.
@@ -112,50 +69,93 @@ struct Expression {
     LabelEntry* label;
   };
 
+  //! \name Members
+  //! \{
+
   //! Operation type.
-  uint8_t opType;
+  ExpressionOpType opType;
   //! Value types of \ref value.
-  uint8_t valueType[2];
+  ExpressionValueType valueType[2];
   //! Reserved for future use, should be initialized to zero.
   uint8_t reserved[5];
   //! Expression left and right values.
   Value value[2];
 
+  //! \}
+
+  //! \name Accessors
+  //! \{
+
   //! Resets the whole expression.
   //!
-  //! Changes both values to \ref kValueNone.
+  //! Changes both values to \ref ExpressionValueType::kNone.
   inline void reset() noexcept { memset(this, 0, sizeof(*this)); }
 
-  //! Sets the value type at `index` to \ref kValueConstant and its content to `constant`.
+  //! Sets the value type at `index` to \ref ExpressionValueType::kConstant and its content to `constant`.
   inline void setValueAsConstant(size_t index, uint64_t constant) noexcept {
-    valueType[index] = kValueConstant;
+    valueType[index] = ExpressionValueType::kConstant;
     value[index].constant = constant;
   }
 
-  //! Sets the value type at `index` to \ref kValueLabel and its content to `labelEntry`.
+  //! Sets the value type at `index` to \ref ExpressionValueType::kLabel and its content to `labelEntry`.
   inline void setValueAsLabel(size_t index, LabelEntry* labelEntry) noexcept {
-    valueType[index] = kValueLabel;
+    valueType[index] = ExpressionValueType::kLabel;
     value[index].label = labelEntry;
   }
 
-  //! Sets the value type at `index` to \ref kValueExpression and its content to `expression`.
+  //! Sets the value type at `index` to \ref ExpressionValueType::kExpression and its content to `expression`.
   inline void setValueAsExpression(size_t index, Expression* expression) noexcept {
-    valueType[index] = kValueLabel;
+    valueType[index] = ExpressionValueType::kExpression;
     value[index].expression = expression;
   }
+
+  //! \}
 };
 
-// ============================================================================
-// [asmjit::Section]
-// ============================================================================
+//! Section flags, used by \ref Section.
+enum class SectionFlags : uint32_t {
+  //! No flags.
+  kNone = 0,
+  //! Executable (.text sections).
+  kExecutable = 0x00000001u,
+  //! Read-only (.text and .data sections).
+  kReadOnly = 0x00000002u,
+  //! Zero initialized by the loader (BSS).
+  kZeroInitialized = 0x00000004u,
+  //! Info / comment flag.
+  kComment = 0x00000008u,
+  //! Section created implicitly, can be deleted by \ref Target.
+  kImplicit = 0x80000000u
+};
+ASMJIT_DEFINE_ENUM_FLAGS(SectionFlags)
+
+//! Flags that can be used with \ref CodeHolder::copySectionData() and \ref CodeHolder::copyFlattenedData().
+enum class CopySectionFlags : uint32_t {
+  //! No flags.
+  kNone = 0,
+
+  //! If virtual size of a section is greater than the size of its \ref CodeBuffer then all bytes between the buffer
+  //! size and virtual size will be zeroed. If this option is not set then those bytes would be left as is, which
+  //! means that if the user didn't initialize them they would have a previous content, which may be unwanted.
+  kPadSectionBuffer = 0x00000001u,
+
+  //! Clears the target buffer if the flattened data is less than the destination size. This option works
+  //! only with \ref CodeHolder::copyFlattenedData() as it processes multiple sections. It is ignored by
+  //! \ref CodeHolder::copySectionData().
+  kPadTargetBuffer = 0x00000002u
+};
+ASMJIT_DEFINE_ENUM_FLAGS(CopySectionFlags)
 
 //! Section entry.
 class Section {
 public:
+  //! \name Members
+  //! \{
+
   //! Section id.
   uint32_t _id;
   //! Section flags.
-  uint32_t _flags;
+  SectionFlags _flags;
   //! Section alignment requirements (0 if no requirements).
   uint32_t _alignment;
   //! Order (lower value means higher priority).
@@ -169,19 +169,7 @@ public:
   //! Code or data buffer.
   CodeBuffer _buffer;
 
-  //! Section flags.
-  enum Flags : uint32_t {
-    //! Executable (.text sections).
-    kFlagExec = 0x00000001u,
-    //! Read-only (.text and .data sections).
-    kFlagConst = 0x00000002u,
-    //! Zero initialized by the loader (BSS).
-    kFlagZero = 0x00000004u,
-    //! Info / comment flag.
-    kFlagInfo = 0x00000008u,
-    //! Section created implicitly and can be deleted by \ref Target.
-    kFlagImplicit = 0x80000000u
-  };
+  //! \}
 
   //! \name Accessors
   //! \{
@@ -196,14 +184,14 @@ public:
   //! \overload
   inline const uint8_t* data() const noexcept { return _buffer.data(); }
 
-  //! Returns the section flags, see \ref Flags.
-  inline uint32_t flags() const noexcept { return _flags; }
+  //! Returns the section flags.
+  inline SectionFlags flags() const noexcept { return _flags; }
   //! Tests whether the section has the given `flag`.
-  inline bool hasFlag(uint32_t flag) const noexcept { return (_flags & flag) != 0; }
+  inline bool hasFlag(SectionFlags flag) const noexcept { return Support::test(_flags, flag); }
   //! Adds `flags` to the section flags.
-  inline void addFlags(uint32_t flags) noexcept { _flags |= flags; }
+  inline void addFlags(SectionFlags flags) noexcept { _flags |= flags; }
   //! Removes `flags` from the section flags.
-  inline void clearFlags(uint32_t flags) noexcept { _flags &= ~flags; }
+  inline void clearFlags(SectionFlags flags) noexcept { _flags &= ~flags; }
 
   //! Returns the minimum section alignment
   inline uint32_t alignment() const noexcept { return _alignment; }
@@ -220,9 +208,8 @@ public:
 
   //! Returns the virtual size of the section.
   //!
-  //! Virtual size is initially zero and is never changed by AsmJit. It's normal
-  //! if virtual size is smaller than size returned by `bufferSize()` as the buffer
-  //! stores real data emitted by assemblers or appended by users.
+  //! Virtual size is initially zero and is never changed by AsmJit. It's normal if virtual size is smaller than
+  //! size returned by `bufferSize()` as the buffer stores real data emitted by assemblers or appended by users.
   //!
   //! Use `realSize()` to get the real and final size of this section.
   inline uint64_t virtualSize() const noexcept { return _virtualSize; }
@@ -242,16 +229,50 @@ public:
   //! \}
 };
 
-// ============================================================================
-// [asmjit::OffsetFormat]
-// ============================================================================
+//! Entry in an address table.
+class AddressTableEntry : public ZoneTreeNodeT<AddressTableEntry> {
+public:
+  ASMJIT_NONCOPYABLE(AddressTableEntry)
 
-//! Provides information about formatting offsets, absolute addresses, or their
-//! parts. Offset format is used by both \ref RelocEntry and \ref LabelLink.
-//!
-//! The illustration above describes the relation of region size and offset size.
-//! Region size is the size of the whole unit whereas offset size is the size of
-//! the unit that will be patched.
+  //! \name Members
+  //! \{
+
+  //! Address.
+  uint64_t _address;
+  //! Slot.
+  uint32_t _slot;
+
+  //! \}
+
+  //! \name Construction & Destruction
+  //! \{
+
+  inline explicit AddressTableEntry(uint64_t address) noexcept
+    : _address(address),
+      _slot(0xFFFFFFFFu) {}
+
+  //! \}
+
+  //! \name Accessors
+  //! \{
+
+  inline uint64_t address() const noexcept { return _address; }
+  inline uint32_t slot() const noexcept { return _slot; }
+
+  inline bool hasAssignedSlot() const noexcept { return _slot != 0xFFFFFFFFu; }
+
+  inline bool operator<(const AddressTableEntry& other) const noexcept { return _address < other._address; }
+  inline bool operator>(const AddressTableEntry& other) const noexcept { return _address > other._address; }
+
+  inline bool operator<(uint64_t queryAddress) const noexcept { return _address < queryAddress; }
+  inline bool operator>(uint64_t queryAddress) const noexcept { return _address > queryAddress; }
+
+  //! \}
+};
+
+//! Provides information about formatting offsets, absolute addresses, or their parts. Offset format is used by both
+//! \ref RelocEntry and \ref LabelLink. The illustration below describes the relation of region size and offset size.
+//! Region size is the size of the whole unit whereas offset size is the size of the unit that will be patched.
 //!
 //! ```
 //! +-> Code buffer |   The subject of the relocation (region)  |
@@ -274,36 +295,37 @@ public:
 //!               (ImmBitCount) +- ImmBitShift
 //! ```
 struct OffsetFormat {
-  //! Type of the displacement.
+  //! \name Members
+  //! \{
+
+  //! Type of the offset.
   uint8_t _type;
   //! Encoding flags.
   uint8_t _flags;
-  //! Size of the region (in bytes) containing the offset value, if the offset
-  //! value is part of an instruction, otherwise it would be the same as
-  //! `_valueSize`.
+  //! Size of the region (in bytes) containing the offset value, if the offset value is part of an instruction,
+  //! otherwise it would be the same as `_valueSize`.
   uint8_t _regionSize;
   //! Size of the offset value, in bytes (1, 2, 4, or 8).
   uint8_t _valueSize;
-  //! Offset of the offset value, in bytes, relative to the start of the region
-  //! or data. Value offset would be zero if both region size and value size are
-  //! equal.
+  //! Offset of the offset value, in bytes, relative to the start of the region or data. Value offset would be
+  //! zero if both region size and value size are equal.
   uint8_t _valueOffset;
-  //! Size of the displacement immediate value in bits.
+  //! Size of the offset immediate value in bits.
   uint8_t _immBitCount;
-  //! Shift of the displacement immediate value in bits in the target word.
+  //! Shift of the offset immediate value in bits in the target word.
   uint8_t _immBitShift;
-  //! Number of least significant bits to discard before writing the immediate
-  //! to the destination. All discarded bits must be zero otherwise the value
-  //! is invalid.
+  //! Number of least significant bits to discard before writing the immediate to the destination. All discarded
+  //! bits must be zero otherwise the value is invalid.
   uint8_t _immDiscardLsb;
 
-  //! Type of the displacement.
+  //! \}
+
+  //! Type of the offset.
   enum Type : uint8_t {
     //! A value having `_immBitCount` bits and shifted by `_immBitShift`.
     //!
-    //! This displacement type is sufficient for both X86/X64 and many other
-    //! architectures that store displacement as continuous bits within a machine
-    //! word.
+    //! This offset type is sufficient for both X86/X64 and many other architectures that store displacement
+    //! as continuous bits within a machine word.
     kTypeCommon = 0,
     //! AARCH64 ADR format of `[.|immlo:2|.....|immhi:19|.....]`.
     kTypeAArch64_ADR,
@@ -313,6 +335,9 @@ struct OffsetFormat {
     //! Count of displacement types.
     kTypeCount
   };
+
+  //! \name Accessors
+  //! \{
 
   //! Returns the type of the displacement.
   inline uint32_t type() const noexcept { return _type; }
@@ -379,18 +404,35 @@ struct OffsetFormat {
     _regionSize = uint8_t(leadingSize + trailingSize + _valueSize);
     _valueOffset = uint8_t(leadingSize);
   }
+
+  //! \}
 };
 
-// ============================================================================
-// [asmjit::RelocEntry]
-// ============================================================================
+//! Relocation type.
+enum class RelocType : uint32_t {
+  //! None/deleted (no relocation).
+  kNone = 0,
+  //! Expression evaluation, `_payload` is pointer to `Expression`.
+  kExpression = 1,
+  //! Relocate absolute to absolute.
+  kAbsToAbs = 2,
+  //! Relocate relative to absolute.
+  kRelToAbs = 3,
+  //! Relocate absolute to relative.
+  kAbsToRel = 4,
+  //! Relocate absolute to relative or use trampoline.
+  kX64AddressEntry = 5
+};
 
 //! Relocation entry.
 struct RelocEntry {
+  //! \name Members
+  //! \{
+
   //! Relocation id.
   uint32_t _id;
   //! Type of the relocation.
-  uint32_t _relocType;
+  RelocType _relocType;
   //! Format of the relocated value.
   OffsetFormat _format;
   //! Source section id.
@@ -402,28 +444,14 @@ struct RelocEntry {
   //! Payload (target offset, target address, expression, etc).
   uint64_t _payload;
 
-  //! Relocation type.
-  enum RelocType : uint32_t {
-    //! None/deleted (no relocation).
-    kTypeNone = 0,
-    //! Expression evaluation, `_payload` is pointer to `Expression`.
-    kTypeExpression = 1,
-    //! Relocate absolute to absolute.
-    kTypeAbsToAbs = 2,
-    //! Relocate relative to absolute.
-    kTypeRelToAbs = 3,
-    //! Relocate absolute to relative.
-    kTypeAbsToRel = 4,
-    //! Relocate absolute to relative or use trampoline.
-    kTypeX64AddressEntry = 5
-  };
+  //! \}
 
   //! \name Accessors
   //! \{
 
   inline uint32_t id() const noexcept { return _id; }
 
-  inline uint32_t relocType() const noexcept { return _relocType; }
+  inline RelocType relocType() const noexcept { return _relocType; }
   inline const OffsetFormat& format() const noexcept { return _format; }
 
   inline uint32_t sourceSectionId() const noexcept { return _sourceSectionId; }
@@ -439,9 +467,20 @@ struct RelocEntry {
   //! \}
 };
 
-// ============================================================================
-// [asmjit::LabelLink]
-// ============================================================================
+//! Type of the \ref Label.
+enum class LabelType : uint8_t {
+  //! Anonymous label that can optionally have a name, which is only used for debugging purposes.
+  kAnonymous = 0,
+  //! Local label (always has parentId).
+  kLocal = 1,
+  //! Global label (never has parentId).
+  kGlobal = 2,
+  //! External label (references an external symbol).
+  kExternal = 3,
+
+  //! Maximum value of `LabelType`.
+  kMaxValue = kExternal
+};
 
 //! Data structure used to link either unbound labels or cross-section links.
 struct LabelLink {
@@ -459,16 +498,12 @@ struct LabelLink {
   OffsetFormat format;
 };
 
-// ============================================================================
-// [asmjit::LabelEntry]
-// ============================================================================
-
 //! Label entry.
 //!
 //! Contains the following properties:
 //!   * Label id - This is the only thing that is set to the `Label` operand.
 //!   * Label name - Optional, used mostly to create executables and libraries.
-//!   * Label type - Type of the label, default `Label::kTypeAnonymous`.
+//!   * Label type - Type of the label, default `LabelType::kAnonymous`.
 //!   * Label parent id - Derived from many assemblers that allow to define a
 //!       local label that falls under a global label. This allows to define
 //!       many labels of the same name that have different parent (global) label.
@@ -480,20 +515,27 @@ struct LabelLink {
 //!   * HashNext - Hash-table implementation detail.
 class LabelEntry : public ZoneHashNode {
 public:
-  // Let's round the size of `LabelEntry` to 64 bytes (as `ZoneAllocator` has
-  // granularity of 32 bytes anyway). This gives `_name` the remaining space,
-  // which is should be 16 bytes on 64-bit and 28 bytes on 32-bit architectures.
-  enum : uint32_t {
-    kStaticNameSize =
-      64 - (sizeof(ZoneHashNode) + 8 + sizeof(Section*) + sizeof(size_t) + sizeof(LabelLink*))
-  };
+  //! \name Constants
+  //! \{
 
-  //! Label type, see `Label::LabelType`.
-  uint8_t _type;
+  //! SSO size of \ref _name.
+  //!
+  //! \cond INTERNAL
+  //! Let's round the size of `LabelEntry` to 64 bytes (as `ZoneAllocator` has granularity of 32 bytes anyway). This
+  //! gives `_name` the remaining space, which is should be 16 bytes on 64-bit and 28 bytes on 32-bit architectures.
+  //! \endcond
+  static constexpr uint32_t kStaticNameSize
+    = 64 - (sizeof(ZoneHashNode) + 8 + sizeof(Section*) + sizeof(size_t) + sizeof(LabelLink*));
+
+  //! \}
+
+  //! \name Members
+  //! \{
+
+  //! Type of the label.
+  LabelType _type;
   //! Must be zero.
-  uint8_t _flags;
-  //! Reserved.
-  uint16_t _reserved16;
+  uint8_t _reserved[3];
   //! Label parent id or zero.
   uint32_t _parentId;
   //! Label offset relative to the start of the `_section`.
@@ -504,6 +546,8 @@ public:
   LabelLink* _links;
   //! Label name.
   ZoneString<kStaticNameSize> _name;
+
+  //! \}
 
   //! \name Accessors
   //! \{
@@ -517,10 +561,8 @@ public:
   //! Sets label id (internal, used only by `CodeHolder`).
   inline void _setId(uint32_t id) noexcept { _customData = id; }
 
-  //! Returns label type, see `Label::LabelType`.
-  inline uint32_t type() const noexcept { return _type; }
-  //! Returns label flags, returns 0 at the moment.
-  inline uint32_t flags() const noexcept { return _flags; }
+  //! Returns label type.
+  inline LabelType type() const noexcept { return _type; }
 
   //! Tests whether the label has a parent label.
   inline bool hasParent() const noexcept { return _parentId != Globals::kInvalidId; }
@@ -568,63 +610,30 @@ public:
   //! \}
 };
 
-// ============================================================================
-// [asmjit::AddressTableEntry]
-// ============================================================================
-
-//! Entry in an address table.
-class AddressTableEntry : public ZoneTreeNodeT<AddressTableEntry> {
-public:
-  ASMJIT_NONCOPYABLE(AddressTableEntry)
-
-  //! Address.
-  uint64_t _address;
-  //! Slot.
-  uint32_t _slot;
-
-  //! \name Construction & Destruction
-  //! \{
-
-  inline explicit AddressTableEntry(uint64_t address) noexcept
-    : _address(address),
-      _slot(0xFFFFFFFFu) {}
-
-  //! \}
-
-  //! \name Accessors
-  //! \{
-
-  inline uint64_t address() const noexcept { return _address; }
-  inline uint32_t slot() const noexcept { return _slot; }
-
-  inline bool hasAssignedSlot() const noexcept { return _slot != 0xFFFFFFFFu; }
-
-  inline bool operator<(const AddressTableEntry& other) const noexcept { return _address < other._address; }
-  inline bool operator>(const AddressTableEntry& other) const noexcept { return _address > other._address; }
-
-  inline bool operator<(uint64_t queryAddress) const noexcept { return _address < queryAddress; }
-  inline bool operator>(uint64_t queryAddress) const noexcept { return _address > queryAddress; }
-
-  //! \}
-};
-
-// ============================================================================
-// [asmjit::CodeHolder]
-// ============================================================================
-
-//! Contains basic information about the target architecture and its options.
+//! Holds assembled code and data (including sections, labels, and relocation information).
 //!
-//! In addition, it holds assembled code & data (including sections, labels, and
-//! relocation information). `CodeHolder` can store both binary and intermediate
-//! representation of assembly, which can be generated by \ref BaseAssembler,
-//! \ref BaseBuilder, and \ref BaseCompiler
+//! CodeHolder connects emitters with their targets. It provides them interface that can be used to query information
+//! about the target environment (architecture, etc...) and API to create labels, sections, relocations, and to write
+//! data to a \ref CodeBuffer, which is always part of \ref Section. More than one emitter can be attached to a single
+//! CodeHolder instance at a time, which is used in practice
 //!
-//! \note `CodeHolder` has an ability to attach an \ref ErrorHandler, however,
-//! the error handler is not triggered by `CodeHolder` itself, it's instead
-//! propagated to all emitters that attach to it.
+//! CodeHolder provides interface for all emitter types. Assemblers use CodeHolder to write into \ref CodeBuffer, and
+//! higher level emitters like Builder and Compiler use CodeHolder to manage labels and sections so higher level code
+//! can be serialized to Assembler by \ref BaseEmitter::finalize() and \ref BaseBuilder::serializeTo().
+//!
+//! In order to use CodeHolder, it must be first initialized by \ref init(). After the CodeHolder has been successfully
+//! initialized it can be used to hold assembled code, sections, labels, relocations, and to attach / detach code
+//! emitters. After the end of code generation it can be used to query physical locations of labels and to relocate
+//! the assembled code into the right address.
+//!
+//! \note \ref CodeHolder has an ability to attach an \ref ErrorHandler, however, the error handler is not triggered
+//! by \ref CodeHolder itself, it's instead propagated to all emitters that attach to it.
 class CodeHolder {
 public:
   ASMJIT_NONCOPYABLE(CodeHolder)
+
+  //! \name Members
+  //! \{
 
   //! Environment information.
   Environment _environment;
@@ -661,24 +670,7 @@ public:
   //! Address table entries.
   ZoneTree<AddressTableEntry> _addressTableEntries;
 
-  //! Options that can be used with \ref copySectionData() and \ref copyFlattenedData().
-  enum CopyOptions : uint32_t {
-    //! If virtual size of a section is greater than the size of its \ref CodeBuffer
-    //! then all bytes between the buffer size and virtual size will be zeroed.
-    //! If this option is not set then those bytes would be left as is, which
-    //! means that if the user didn't initialize them they would have a previous
-    //! content, which may be unwanted.
-    kCopyPadSectionBuffer = 0x00000001u,
-
-#ifndef ASMJIT_NO_DEPRECATED
-    kCopyWithPadding = kCopyPadSectionBuffer,
-#endif // !ASMJIT_NO_DEPRECATED
-
-    //! Zeroes the target buffer if the flattened data is less than the destination
-    //! size. This option works only with \ref copyFlattenedData() as it processes
-    //! multiple sections. It is ignored by \ref copySectionData().
-    kCopyPadTargetBuffer = 0x00000002u
-  };
+  //! \}
 
   //! \name Construction & Destruction
   //! \{
@@ -693,10 +685,10 @@ public:
   //! Emitters can be only attached to initialized `CodeHolder` instances.
   inline bool isInitialized() const noexcept { return _environment.isInitialized(); }
 
-  //! Initializes CodeHolder to hold code described by code `info`.
+  //! Initializes CodeHolder to hold code described by the given `environment` and `baseAddress`.
   ASMJIT_API Error init(const Environment& environment, uint64_t baseAddress = Globals::kNoBaseAddress) noexcept;
   //! Detaches all code-generators attached and resets the `CodeHolder`.
-  ASMJIT_API void reset(uint32_t resetPolicy = Globals::kResetSoft) noexcept;
+  ASMJIT_API void reset(ResetPolicy resetPolicy = ResetPolicy::kSoft) noexcept;
 
   //! \}
 
@@ -715,10 +707,9 @@ public:
 
   //! Returns the allocator that the `CodeHolder` uses.
   //!
-  //! \note This should be only used for AsmJit's purposes. Code holder uses
-  //! arena allocator to allocate everything, so anything allocated through
-  //! this allocator will be invalidated by \ref CodeHolder::reset() or by
-  //! CodeHolder's destructor.
+  //! \note This should be only used for AsmJit's purposes. Code holder uses arena allocator to allocate everything,
+  //! so anything allocated through this allocator will be invalidated by \ref CodeHolder::reset() or by CodeHolder's
+  //! destructor.
   inline ZoneAllocator* allocator() const noexcept { return const_cast<ZoneAllocator*>(&_allocator); }
 
   //! \}
@@ -726,13 +717,13 @@ public:
   //! \name Code & Architecture
   //! \{
 
-  //! Returns the target environment information, see \ref Environment.
+  //! Returns the target environment information.
   inline const Environment& environment() const noexcept { return _environment; }
 
   //! Returns the target architecture.
-  inline uint32_t arch() const noexcept { return environment().arch(); }
+  inline Arch arch() const noexcept { return environment().arch(); }
   //! Returns the target sub-architecture.
-  inline uint32_t subArch() const noexcept { return environment().subArch(); }
+  inline SubArch subArch() const noexcept { return environment().subArch(); }
 
   //! Tests whether a static base-address is set.
   inline bool hasBaseAddress() const noexcept { return _baseAddress != Globals::kNoBaseAddress; }
@@ -752,7 +743,7 @@ public:
   //! \name Logging
   //! \{
 
-  //! Returns the attached logger, see \ref Logger.
+  //! Returns the attached logger.
   inline Logger* logger() const noexcept { return _logger; }
   //! Attaches a `logger` to CodeHolder and propagates it to all attached emitters.
   ASMJIT_API void setLogger(Logger* logger) noexcept;
@@ -778,14 +769,12 @@ public:
 
   //! Makes sure that at least `n` bytes can be added to CodeHolder's buffer `cb`.
   //!
-  //! \note The buffer `cb` must be managed by `CodeHolder` - otherwise the
-  //! behavior of the function is undefined.
+  //! \note The buffer `cb` must be managed by `CodeHolder` - otherwise the behavior of the function is undefined.
   ASMJIT_API Error growBuffer(CodeBuffer* cb, size_t n) noexcept;
 
   //! Reserves the size of `cb` to at least `n` bytes.
   //!
-  //! \note The buffer `cb` must be managed by `CodeHolder` - otherwise the
-  //! behavior of the function is undefined.
+  //! \note The buffer `cb` must be managed by `CodeHolder` - otherwise the behavior of the function is undefined.
   ASMJIT_API Error reserveBuffer(CodeBuffer* cb, size_t n) noexcept;
 
   //! \}
@@ -806,7 +795,7 @@ public:
   //! Creates a new section and return its pointer in `sectionOut`.
   //!
   //! Returns `Error`, does not report a possible error to `ErrorHandler`.
-  ASMJIT_API Error newSection(Section** sectionOut, const char* name, size_t nameSize = SIZE_MAX, uint32_t flags = 0, uint32_t alignment = 1, int32_t order = 0) noexcept;
+  ASMJIT_API Error newSection(Section** sectionOut, const char* name, size_t nameSize = SIZE_MAX, SectionFlags flags = SectionFlags::kNone, uint32_t alignment = 1, int32_t order = 0) noexcept;
 
   //! Returns a section entry of the given index.
   inline Section* sectionById(uint32_t sectionId) const noexcept { return _sections[sectionId]; }
@@ -838,14 +827,12 @@ public:
 
   //! Used to add an address to an address table.
   //!
-  //! This implicitly calls `ensureAddressTableSection()` and then creates
-  //! `AddressTableEntry` that is inserted to `_addressTableEntries`. If the
-  //! address already exists this operation does nothing as the same addresses
+  //! This implicitly calls `ensureAddressTableSection()` and then creates `AddressTableEntry` that is inserted
+  //! to `_addressTableEntries`. If the address already exists this operation does nothing as the same addresses
   //! use the same slot.
   //!
-  //! This function should be considered internal as it's used by assemblers to
-  //! insert an absolute address into the address table. Inserting address into
-  //! address table without creating a particula relocation entry makes no sense.
+  //! This function should be considered internal as it's used by assemblers to insert an absolute address into the
+  //! address table. Inserting address into address table without creating a particula relocation entry makes no sense.
   ASMJIT_API Error addAddressToAddressTable(uint64_t address) noexcept;
 
   //! \}
@@ -893,8 +880,8 @@ public:
 
   //! Returns offset of a `Label` by its `labelId`.
   //!
-  //! The offset returned is relative to the start of the section. Zero offset
-  //! is returned for unbound labels, which is their initial offset value.
+  //! The offset returned is relative to the start of the section. Zero offset is returned for unbound labels,
+  //! which is their initial offset value.
   inline uint64_t labelOffset(uint32_t labelId) const noexcept {
     ASMJIT_ASSERT(isLabelValid(labelId));
     return _labelEntries[labelId]->offset();
@@ -907,9 +894,8 @@ public:
 
   //! Returns offset of a label by it's `labelId` relative to the base offset.
   //!
-  //! \remarks The offset of the section where the label is bound must be valid
-  //! in order to use this function, otherwise the value returned will not be
-  //! reliable.
+  //! \remarks The offset of the section where the label is bound must be valid in order to use this function,
+  //! otherwise the value returned will not be reliable.
   inline uint64_t labelOffsetFromBase(uint32_t labelId) const noexcept {
     ASMJIT_ASSERT(isLabelValid(labelId));
     const LabelEntry* le = _labelEntries[labelId];
@@ -930,20 +916,18 @@ public:
   //!
   //! \param entryOut Where to store the created \ref LabelEntry.
   //! \param name The name of the label.
-  //! \param nameSize The length of `name` argument, or `SIZE_MAX` if `name` is
-  //!        a null terminated string, which means that the `CodeHolder` will
-  //!        use `strlen()` to determine the length.
-  //! \param type The type of the label to create, see \ref Label::LabelType.
-  //! \param parentId Parent id of a local label, otherwise it must be
-  //!        \ref Globals::kInvalidId.
+  //! \param nameSize The length of `name` argument, or `SIZE_MAX` if `name` is a null terminated string, which
+  //!        means that the `CodeHolder` will use `strlen()` to determine the length.
+  //! \param type The type of the label to create, see \ref LabelType.
+  //! \param parentId Parent id of a local label, otherwise it must be \ref Globals::kInvalidId.
+  //! \retval Always returns \ref Error, does not report a possible error to the attached \ref ErrorHandler.
   //!
-  //! \retval Always returns \ref Error, does not report a possible error to
-  //!         the attached \ref ErrorHandler.
-  //!
-  //! AsmJit has a support for local labels (\ref Label::kTypeLocal) which
-  //! require a parent label id (parentId). The names of local labels can
-  //! conflict with names of other local labels that have a different parent.
-  ASMJIT_API Error newNamedLabelEntry(LabelEntry** entryOut, const char* name, size_t nameSize, uint32_t type, uint32_t parentId = Globals::kInvalidId) noexcept;
+  //! AsmJit has a support for local labels (\ref LabelType::kLocal) which require a parent label id (parentId).
+  //! The names of local labels can conflict with names of other local labels that have a different parent. In
+  //! addition, AsmJit supports named anonymous labels, which are useful only for debugging purposes as the
+  //! anonymous name will have a name, which will be formatted, but the label itself cannot be queried by such
+  //! name.
+  ASMJIT_API Error newNamedLabelEntry(LabelEntry** entryOut, const char* name, size_t nameSize, LabelType type, uint32_t parentId = Globals::kInvalidId) noexcept;
 
   //! Returns a label by name.
   //!
@@ -968,10 +952,9 @@ public:
   //! Returns `null` if the allocation failed.
   ASMJIT_API LabelLink* newLabelLink(LabelEntry* le, uint32_t sectionId, size_t offset, intptr_t rel, const OffsetFormat& format) noexcept;
 
-  //! Resolves cross-section links (`LabelLink`) associated with each label that
-  //! was used as a destination in code of a different section. It's only useful
-  //! to people that use multiple sections as it will do nothing if the code only
-  //! contains a single section in which cross-section links are not possible.
+  //! Resolves cross-section links (`LabelLink`) associated with each label that was used as a destination in code
+  //! of a different section. It's only useful to people that use multiple sections as it will do nothing if the code
+  //! only contains a single section in which cross-section links are not possible.
   ASMJIT_API Error resolveUnresolvedLinks() noexcept;
 
   //! Binds a label to a given `sectionId` and `offset` (relative to start of the section).
@@ -995,7 +978,7 @@ public:
   //! Creates a new relocation entry of type `relocType`.
   //!
   //! Additional fields can be set after the relocation entry was created.
-  ASMJIT_API Error newRelocEntry(RelocEntry** dst, uint32_t relocType) noexcept;
+  ASMJIT_API Error newRelocEntry(RelocEntry** dst, RelocType relocType) noexcept;
 
   //! \}
 
@@ -1009,49 +992,29 @@ public:
 
   //! Returns computed the size of code & data of all sections.
   //!
-  //! \note All sections will be iterated over and the code size returned
-  //! would represent the minimum code size of all combined sections after
-  //! applying minimum alignment. Code size may decrease after calling
-  //! `flatten()` and `relocateToBase()`.
+  //! \note All sections will be iterated over and the code size returned would represent the minimum code size of
+  //! all combined sections after applying minimum alignment. Code size may decrease after calling `flatten()` and
+  //! `relocateToBase()`.
   ASMJIT_API size_t codeSize() const noexcept;
 
   //! Relocates the code to the given `baseAddress`.
   //!
-  //! \param baseAddress Absolute base address where the code will be relocated
-  //! to. Please note that nothing is copied to such base address, it's just an
-  //! absolute value used by the relocator to resolve all stored relocations.
+  //! \param baseAddress Absolute base address where the code will be relocated to. Please note that nothing is
+  //! copied to such base address, it's just an absolute value used by the relocator to resolve all stored relocations.
   //!
   //! \note This should never be called more than once.
   ASMJIT_API Error relocateToBase(uint64_t baseAddress) noexcept;
 
   //! Copies a single section into `dst`.
-  ASMJIT_API Error copySectionData(void* dst, size_t dstSize, uint32_t sectionId, uint32_t copyOptions = 0) noexcept;
+  ASMJIT_API Error copySectionData(void* dst, size_t dstSize, uint32_t sectionId, CopySectionFlags copyFlags = CopySectionFlags::kNone) noexcept;
 
   //! Copies all sections into `dst`.
   //!
-  //! This should only be used if the data was flattened and there are no gaps
-  //! between the sections. The `dstSize` is always checked and the copy will
-  //! never write anything outside the provided buffer.
-  ASMJIT_API Error copyFlattenedData(void* dst, size_t dstSize, uint32_t copyOptions = 0) noexcept;
+  //! This should only be used if the data was flattened and there are no gaps between the sections. The `dstSize`
+  //! is always checked and the copy will never write anything outside the provided buffer.
+  ASMJIT_API Error copyFlattenedData(void* dst, size_t dstSize, CopySectionFlags copyFlags = CopySectionFlags::kNone) noexcept;
 
   //! \}
-
-#ifndef ASMJIT_NO_DEPRECATED
-  ASMJIT_DEPRECATED("Use 'CodeHolder::init(const Environment& environment, uint64_t baseAddress)' instead")
-  inline Error init(const CodeInfo& codeInfo) noexcept { return init(codeInfo._environment, codeInfo._baseAddress); }
-
-  ASMJIT_DEPRECATED("Use nevironment() instead")
-  inline CodeInfo codeInfo() const noexcept { return CodeInfo(_environment, _baseAddress); }
-
-  ASMJIT_DEPRECATED("Use BaseEmitter::encodingOptions() - this function always returns zero")
-  inline uint32_t emitterOptions() const noexcept { return 0; }
-
-  ASMJIT_DEPRECATED("Use BaseEmitter::addEncodingOptions() - this function does nothing")
-  inline void addEmitterOptions(uint32_t options) noexcept { DebugUtils::unused(options); }
-
-  ASMJIT_DEPRECATED("Use BaseEmitter::clearEncodingOptions() - this function does nothing")
-  inline void clearEmitterOptions(uint32_t options) noexcept { DebugUtils::unused(options); }
-#endif // !ASMJIT_NO_DEPRECATED
 };
 
 //! \}

@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_X86_X86GLOBALS_H_INCLUDED
 #define ASMJIT_X86_X86GLOBALS_H_INCLUDED
@@ -37,14 +19,10 @@ ASMJIT_BEGIN_SUB_NAMESPACE(x86)
 //! \addtogroup asmjit_x86
 //! \{
 
-// ============================================================================
-// [asmjit::x86::Inst]
-// ============================================================================
-
-//! Instruction.
+//! Instruction (X86/X86_64).
 //!
 //! \note Only used to hold x86-specific enumerations and static functions.
-struct Inst : public BaseInst {
+struct Inst {
   //! Instruction id.
   enum Id : uint32_t {
     // ${InstId:Begin}
@@ -1609,49 +1587,9 @@ struct Inst : public BaseInst {
     // ${InstId:End}
   };
 
-  //! Instruction options.
-  enum Options : uint32_t {
-    kOptionModMR          = 0x00000100u, //!< Use ModMR instead of ModRM if applicable.
-    kOptionModRM          = 0x00000200u, //!< Use ModRM instead of ModMR if applicable.
-    kOptionVex3           = 0x00000400u, //!< Use 3-byte VEX prefix if possible (AVX) (must be 0x00000400).
-    kOptionVex            = 0x00000800u, //!< Use VEX prefix when both VEX|EVEX prefixes are available (HINT: AVX_VNNI).
-    kOptionEvex           = 0x00001000u, //!< Use 4-byte EVEX prefix if possible (AVX-512) (must be 0x00001000).
-
-    kOptionLock           = 0x00002000u, //!< LOCK prefix (lock-enabled instructions only).
-    kOptionRep            = 0x00004000u, //!< REP prefix (string instructions only).
-    kOptionRepne          = 0x00008000u, //!< REPNE prefix (string instructions only).
-
-    kOptionXAcquire       = 0x00010000u, //!< XACQUIRE prefix (only allowed instructions).
-    kOptionXRelease       = 0x00020000u, //!< XRELEASE prefix (only allowed instructions).
-
-    kOptionER             = 0x00040000u, //!< AVX-512: embedded-rounding {er} and implicit {sae}.
-    kOptionSAE            = 0x00080000u, //!< AVX-512: suppress-all-exceptions {sae}.
-    kOptionRN_SAE         = 0x00000000u, //!< AVX-512: round-to-nearest (even)      {rn-sae} (bits 00).
-    kOptionRD_SAE         = 0x00200000u, //!< AVX-512: round-down (toward -inf)     {rd-sae} (bits 01).
-    kOptionRU_SAE         = 0x00400000u, //!< AVX-512: round-up (toward +inf)       {ru-sae} (bits 10).
-    kOptionRZ_SAE         = 0x00600000u, //!< AVX-512: round-toward-zero (truncate) {rz-sae} (bits 11).
-    kOptionZMask          = 0x00800000u, //!< AVX-512: Use zeroing {k}{z} instead of merging {k}.
-    _kOptionAvx512Mask    = 0x00FC0000u, //!< AVX-512: Mask of all possible AVX-512 options except EVEX prefix flag.
-
-    kOptionOpCodeB        = 0x01000000u, //!< REX.B and/or VEX.B field (X64).
-    kOptionOpCodeX        = 0x02000000u, //!< REX.X and/or VEX.X field (X64).
-    kOptionOpCodeR        = 0x04000000u, //!< REX.R and/or VEX.R field (X64).
-    kOptionOpCodeW        = 0x08000000u, //!< REX.W and/or VEX.W field (X64).
-    kOptionRex            = 0x40000000u, //!< Force REX prefix (X64).
-    _kOptionInvalidRex    = 0x80000000u  //!< Invalid REX prefix (set by X86 or when AH|BH|CH|DH regs are used on X64).
-  };
-
-  // --------------------------------------------------------------------------
-  // [Statics]
-  // --------------------------------------------------------------------------
-
-  //! Tests whether the `instId` is defined (counts also Inst::kIdNone, which must be zero).
-  static inline bool isDefinedId(uint32_t instId) noexcept { return instId < _kIdCount; }
+  //! Tests whether the `instId` is defined.
+  static inline constexpr bool isDefinedId(InstId instId) noexcept { return instId < _kIdCount; }
 };
-
-// ============================================================================
-// [asmjit::x86::Condition]
-// ============================================================================
 
 namespace Condition {
   //! Condition code.
@@ -1686,7 +1624,6 @@ namespace Condition {
     kNG                   = 0x0Eu,       //!<         ZF==1 | SF!=OF (signed   <=)
     kG                    = 0x0Fu,       //!<         ZF==0 & SF==OF (signed   > )
     kNLE                  = 0x0Fu,       //!<         ZF==0 & SF==OF (signed   > )
-    kCount                = 0x10u,
 
     kSign                 = kS,          //!< Sign.
     kNotSign              = kNS,         //!< Not Sign.
@@ -1714,10 +1651,12 @@ namespace Condition {
     kPositive             = kNS,         //!< No sign flag.
 
     kParityEven           = kP,          //!< Even parity flag.
-    kParityOdd            = kPO          //!< Odd parity flag.
+    kParityOdd            = kPO,         //!< Odd parity flag.
+
+    kMaxValue             = 0x0Fu
   };
 
-  static constexpr uint8_t reverseTable[kCount] = {
+  static constexpr uint8_t reverseTable[] = {
     kO, kNO, kA , kBE, // O|NO|B |AE
     kE, kNE, kAE, kB , // E|NE|BE|A
     kS, kNS, kPE, kPO, // S|NS|PE|PO
@@ -1746,10 +1685,6 @@ namespace Condition {
   //! Translates a condition code `cond` to a `cmovcc` instruction id.
   static constexpr uint32_t toCmovcc(uint32_t cond) noexcept { return cmovccTable[cond]; }
 }
-
-// ============================================================================
-// [asmjit::x86::FpuWord]
-// ============================================================================
 
 //! FPU control and status words.
 namespace FpuWord {
@@ -1841,17 +1776,13 @@ namespace FpuWord {
   };
 }
 
-// ============================================================================
-// [asmjit::x86::Status]
-// ============================================================================
-
 //! CPU and FPU status flags.
 namespace Status {
   //! CPU and FPU status flags used by `InstRWInfo`
   enum Flags : uint32_t {
-    // ------------------------------------------------------------------------
-    // [Architecture Neutral Flags - 0x000000FF]
-    // ------------------------------------------------------------------------
+
+    // Architecture Neutral Flags - 0x000000FF
+    // ---------------------------------------
 
     //! Carry flag.
     kCF = 0x00000001u,
@@ -1862,9 +1793,8 @@ namespace Status {
     //! Zero and/or equality flag (1 if zero/equal).
     kZF = 0x00000008u,
 
-    // ------------------------------------------------------------------------
-    // [Architecture Specific Flags - 0xFFFFFF00]
-    // ------------------------------------------------------------------------
+    // Architecture Specific Flags - 0xFFFFFF00
+    // ----------------------------------------
 
     //! Adjust flag.
     kAF = 0x00000100u,
@@ -1888,10 +1818,6 @@ namespace Status {
     kC3 = 0x00080000u
   };
 }
-
-// ============================================================================
-// [asmjit::x86::Predicate]
-// ============================================================================
 
 //! Contains predicates used by SIMD instructions.
 namespace Predicate {
@@ -2102,10 +2028,6 @@ namespace Predicate {
     return (a << 6) | (b << 4) | (c << 2) | d;
   }
 }
-
-// ============================================================================
-// [asmjit::x86::TLog]
-// ============================================================================
 
 //! Bitwise ternary logic between 3 operands introduced by AVX-512.
 namespace TLog {

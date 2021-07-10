@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #include "../core/api-build_p.h"
 #include "../core/zone.h"
@@ -27,9 +9,8 @@
 
 ASMJIT_BEGIN_NAMESPACE
 
-// ============================================================================
-// [asmjit::ZoneStackBase - Init / Reset]
-// ============================================================================
+// ZoneStackBase - Init & Reset
+// ============================
 
 Error ZoneStackBase::_init(ZoneAllocator* allocator, size_t middleIndex) noexcept {
   ZoneAllocator* oldAllocator = _allocator;
@@ -65,9 +46,8 @@ Error ZoneStackBase::_init(ZoneAllocator* allocator, size_t middleIndex) noexcep
   return kErrorOk;
 }
 
-// ============================================================================
-// [asmjit::ZoneStackBase - Ops]
-// ============================================================================
+// ZoneStackBase - Operations
+// ==========================
 
 Error ZoneStackBase::_prepareBlock(uint32_t side, size_t initialIndex) noexcept {
   ASMJIT_ASSERT(isInitialized());
@@ -109,9 +89,8 @@ void ZoneStackBase::_cleanupBlock(uint32_t side, size_t middleIndex) noexcept {
   }
 }
 
-// ============================================================================
-// [asmjit::ZoneStack - Unit]
-// ============================================================================
+// ZoneStack - Tests
+// =================
 
 #if defined(ASMJIT_TEST)
 template<typename T>

@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 // ============================================================================
 // tablegen-x86.js
@@ -457,12 +439,12 @@ class GenUtils {
     }
   }
 
-  static controlType(dbInsts) {
+  static controlFlow(dbInsts) {
     if (dbInsts.checkAttribute("Control", "Jump")) return "Jump";
     if (dbInsts.checkAttribute("Control", "Call")) return "Call";
     if (dbInsts.checkAttribute("Control", "Branch")) return "Branch";
     if (dbInsts.checkAttribute("Control", "Return")) return "Return";
-    return "None";
+    return "Regular";
   }
 }
 
@@ -526,7 +508,7 @@ class X86TableGen extends core.TableGen {
         FAIL(`Instruction '${name}' not found in asmdb`);
 
       const flags         = GenUtils.flagsOf(dbInsts);
-      const controlType   = GenUtils.controlType(dbInsts);
+      const controlFlow   = GenUtils.controlFlow(dbInsts);
       const singleRegCase = GenUtils.singleRegCase(name);
 
       this.addInst({
@@ -539,7 +521,7 @@ class X86TableGen extends core.TableGen {
         opcode1           : opcode1,       // Secondary opcode.
         flags             : flags,
         signatures        : null,          // Instruction signatures.
-        controlType       : controlType,
+        controlFlow       : controlFlow,
         singleRegCase     : singleRegCase,
 
         mainOpcodeValue   : -1,            // Main opcode value (0.255 hex).
@@ -1740,7 +1722,7 @@ class InstCommonInfoTableB extends core.Task {
       inst.commomInfoIndexB = commonTableB.addIndexed(`{ { ${features} }, ${rwDataIndex}, 0 }`);
     });
 
-    var s = `#define EXT(VAL) uint32_t(Features::k##VAL)\n` +
+    var s = `#define EXT(VAL) uint32_t(CpuFeatures::X86::k##VAL)\n` +
             `const InstDB::CommonInfoTableB InstDB::_commonInfoTableB[] = {\n${StringUtils.format(commonTableB, kIndent, true)}\n};\n` +
             `#undef EXT\n` +
             `\n` +
@@ -1901,7 +1883,7 @@ class InstRWInfoTable extends core.Task {
       "0x0000000000000000u",
       "0xFF",
       CxxUtils.struct(0),
-      "0"
+      "OpRWFlags::kNone"
     );
 
     this.rmInfoTable.addIndexed(noRmInfo);
@@ -1951,7 +1933,7 @@ class InstRWInfoTable extends core.Task {
             this.byteMaskFromBitRanges([{ start: wIndex, end: wIndex + wWidth - 1 }]) + "u",
             StringUtils.decToHex(op.fixed === -1 ? 0xFF : op.fixed, 2),
             CxxUtils.struct(0),
-            CxxUtils.flags(flags, function(flag) { return "OpRWInfo::k" + flag; })
+            CxxUtils.flags(flags, function(flag) { return "OpRWFlags::k" + flag; }, "OpRWFlags::kNone")
           );
 
           rwOpsIndex.push(this.opInfoTable.addIndexed(opData));
@@ -1962,7 +1944,7 @@ class InstRWInfoTable extends core.Task {
           StringUtils.decToHex(rmInfo.rmIndexes, 2),
           String(Math.max(rmInfo.memFixed, 0)).padEnd(2),
           CxxUtils.flags({ "InstDB::RWInfoRm::kFlagAmbiguous": Boolean(rmInfo.memAmbiguous) }),
-          rmInfo.memExtension === "None" ? "0" : "Features::k" + rmInfo.memExtension
+          rmInfo.memExtension === "None" ? "0" : "uint32_t(CpuFeatures::X86::k" + rmInfo.memExtension + ")"
         );
 
         const rwData = CxxUtils.struct(
@@ -2453,21 +2435,21 @@ class InstCommonTable extends core.Task {
       const avx512Flags = avx512FlagsArray.map(function(flag) { return `X(${flag.substr(6)})`; }).join("|") || "0";
 
       const singleRegCase = `SINGLE_REG(${inst.singleRegCase})`;
-      const controlType = `CONTROL(${inst.controlType})`;
+      const controlFlow = `CONTROL(${inst.controlFlow})`;
 
       const row = "{ " +
         String(commonFlags        ).padEnd(50) + ", " +
         String(avx512Flags        ).padEnd(30) + ", " +
         String(inst.signatureIndex).padEnd( 3) + ", " +
         String(inst.signatureCount).padEnd( 2) + ", " +
-        String(controlType        ).padEnd(16) + ", " +
+        String(controlFlow        ).padEnd(16) + ", " +
         String(singleRegCase      ).padEnd(16) + "}";
       inst.commonInfoIndexA = table.addIndexed(row);
     });
 
     var s = `#define F(VAL) InstDB::kFlag##VAL\n` +
             `#define X(VAL) InstDB::kAvx512Flag##VAL\n` +
-            `#define CONTROL(VAL) Inst::kControl##VAL\n` +
+            `#define CONTROL(VAL) uint8_t(InstControlFlow::k##VAL)\n` +
             `#define SINGLE_REG(VAL) InstDB::kSingleReg##VAL\n` +
             `const InstDB::CommonInfo InstDB::_commonInfoTable[] = {\n${StringUtils.format(table, kIndent, true)}\n};\n` +
             `#undef SINGLE_REG\n` +

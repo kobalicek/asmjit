@@ -1,61 +1,26 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
-#include <asmjit/asmjit.h>
-#include "./broken.h"
+#include <asmjit/core.h>
+
+#if !defined(ASMJIT_NO_X86)
+#include <asmjit/x86.h>
+#endif
+
+#include "asmjitutils.h"
+#include "broken.h"
 
 using namespace asmjit;
-
-// ============================================================================
-// [DumpCpu]
-// ============================================================================
-
-struct DumpCpuFeature {
-  uint32_t feature;
-  const char* name;
-};
-
-static const char* archToString(uint32_t arch) noexcept {
-  switch (arch & ~Environment::kArchBigEndianMask) {
-    case Environment::kArchX86      : return "X86";
-    case Environment::kArchX64      : return "X64";
-    case Environment::kArchARM      : return "ARM";
-    case Environment::kArchThumb    : return "Thumb";
-    case Environment::kArchAArch64  : return "AArch64";
-    case Environment::kArchMIPS32_LE: return "MIPS";
-    case Environment::kArchMIPS64_LE: return "MIPS64";
-    default: return "Unknown";
-  }
-}
 
 static void dumpCpu(void) noexcept {
   const CpuInfo& cpu = CpuInfo::host();
 
-  // --------------------------------------------------------------------------
-  // [CPU Information]
-  // --------------------------------------------------------------------------
+  // CPU Information
+  // ---------------
 
-  INFO("Host CPU:");
+  INFO("CPU Info:");
   INFO("  Vendor                  : %s", cpu.vendor());
   INFO("  Brand                   : %s", cpu.brand());
   INFO("  Model ID                : %u", cpu.modelId());
@@ -68,13 +33,12 @@ static void dumpCpu(void) noexcept {
   INFO("  HW-Thread Count         : %u", cpu.hwThreadCount());
   INFO("");
 
-  // --------------------------------------------------------------------------
-  // [CPU Features]
-  // --------------------------------------------------------------------------
+  // CPU Features
+  // ------------
 
 #ifndef ASMJIT_NO_LOGGING
   INFO("CPU Features:");
-  BaseFeatures::Iterator it(cpu.features().iterator());
+  CpuFeatures::Iterator it(cpu.features().iterator());
   while (it.hasNext()) {
     uint32_t featureId = uint32_t(it.next());
     StringTmp<64> featureString;
@@ -84,10 +48,6 @@ static void dumpCpu(void) noexcept {
   INFO("");
 #endif // !ASMJIT_NO_LOGGING
 }
-
-// ============================================================================
-// [DumpSizeOf]
-// ============================================================================
 
 #define DUMP_TYPE(...) \
   INFO("  %-26s: %u", #__VA_ARGS__, uint32_t(sizeof(__VA_ARGS__)))
@@ -188,10 +148,6 @@ static void dumpSizeOf(void) noexcept {
 
 #undef DUMP_TYPE
 
-// ============================================================================
-// [Main]
-// ============================================================================
-
 static void onBeforeRun(void) noexcept {
   dumpCpu();
   dumpSizeOf();
@@ -208,7 +164,7 @@ int main(int argc, const char* argv[]) {
     unsigned((ASMJIT_LIBRARY_VERSION >> 16)       ),
     unsigned((ASMJIT_LIBRARY_VERSION >>  8) & 0xFF),
     unsigned((ASMJIT_LIBRARY_VERSION      ) & 0xFF),
-    archToString(Environment::kArchHost),
+    asmjitArchAsString(Arch::kHost),
     buildType
   );
 

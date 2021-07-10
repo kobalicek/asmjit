@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_INST_H_INCLUDED
 #define ASMJIT_CORE_INST_H_INCLUDED
@@ -34,20 +16,162 @@ ASMJIT_BEGIN_NAMESPACE
 //! \addtogroup asmjit_instruction_db
 //! \{
 
-// ============================================================================
-// [asmjit::BaseInst]
-// ============================================================================
+//! Describes an instruction.
+//!
+//! Each architecture has a set of valid instructions indexed from 0. Instruction with 0 id is, however, a special
+//! instruction that describes an invalid instruction. Different architectures can share the same instruction id,
+//! which would describe a different instruction per architecture.
+//!
+//! Instruction identifiers listed by architecture:
+//!
+//!   - \ref x86::Inst (X86 and X86_64)
+typedef uint32_t InstId;
 
-//! Instruction id, options, and extraReg in a single structure. This structure
-//! exists mainly to simplify analysis and validation API that requires `BaseInst`
-//! and `Operand[]` array.
+//! Instruction options.
+//!
+//! Instruction options complement instruction identifier and attributes.
+enum class InstOptions : uint32_t {
+  //! No options.
+  kNone = 0,
+
+  //! Used internally by emitters for handling errors and rare cases.
+  kReserved = 0x00000001u,
+
+  //! Prevents following a jump during compilation (Compiler).
+  kUnfollow = 0x00000002u,
+
+  //! Overwrite the destination operand(s) (Compiler).
+  //!
+  //! Hint that is important for register liveness analysis. It tells the compiler that the destination operand will
+  //! be overwritten now or by adjacent instructions. Compiler knows when a register is completely overwritten by a
+  //! single instruction, for example you don't have to mark "movaps" or "pxor x, x", however, if a pair of
+  //! instructions is used and the first of them doesn't completely overwrite the content of the destination,
+  //! Compiler fails to mark that register as dead.
+  //!
+  //! X86 Specific
+  //! ------------
+  //!
+  //!   - All instructions that always overwrite at least the size of the register the virtual-register uses, for
+  //!     example "mov", "movq", "movaps" don't need the overwrite option to be used - conversion, shuffle, and
+  //!     other miscellaneous instructions included.
+  //!
+  //!   - All instructions that clear the destination register if all operands are the same, for example "xor x, x",
+  //!     "pcmpeqb x x", etc...
+  //!
+  //!   - Consecutive instructions that partially overwrite the variable until there is no old content require
+  //!     `BaseCompiler::overwrite()` to be used. Some examples (not always the best use cases thought):
+  //!
+  //!     - `movlps xmm0, ?` followed by `movhps xmm0, ?` and vice versa
+  //!     - `movlpd xmm0, ?` followed by `movhpd xmm0, ?` and vice versa
+  //!     - `mov al, ?` followed by `and ax, 0xFF`
+  //!     - `mov al, ?` followed by `mov ah, al`
+  //!     - `pinsrq xmm0, ?, 0` followed by `pinsrq xmm0, ?, 1`
+  //!
+  //!   - If the allocated virtual register is used temporarily for scalar operations. For example if you allocate a
+  //!     full vector like `x86::Compiler::newXmm()` and then use that vector for scalar operations you should use
+  //!     `overwrite()` directive:
+  //!
+  //!     - `sqrtss x, y` - only LO element of `x` is changed, if you don't
+  //!       use HI elements, use `compiler.overwrite().sqrtss(x, y)`.
+  kOverwrite = 0x00000004u,
+
+  //! Emit short-form of the instruction.
+  kShortForm = 0x00000010u,
+  //! Emit long-form of the instruction.
+  kLongForm = 0x00000020u,
+
+  //! Conditional jump is likely to be taken.
+  kTaken = 0x00000040u,
+  //! Conditional jump is unlikely to be taken.
+  kNotTaken = 0x00000080u,
+
+  // X86 & X64 Options
+  // -----------------
+
+  //! Use ModMR instead of ModRM if applicable.
+  kX86_ModMR = 0x00000100u,
+  //! Use ModRM instead of ModMR if applicable.
+  kX86_ModRM = 0x00000200u,
+  //! Use 3-byte VEX prefix if possible (AVX) (must be 0x00000400).
+  kX86_Vex3 = 0x00000400u,
+  //! Use VEX prefix when both VEX|EVEX prefixes are available (HINT: AVX_VNNI).
+  kX86_Vex = 0x00000800u,
+  //! Use 4-byte EVEX prefix if possible (AVX-512) (must be 0x00001000).
+  kX86_Evex = 0x00001000u,
+
+  //! LOCK prefix (lock-enabled instructions only).
+  kX86_Lock = 0x00002000u,
+  //! REP prefix (string instructions only).
+  kX86_Rep = 0x00004000u,
+  //! REPNE prefix (string instructions only).
+  kX86_Repne = 0x00008000u,
+
+  //! XACQUIRE prefix (only allowed instructions).
+  kX86_XAcquire = 0x00010000u,
+  //! XRELEASE prefix (only allowed instructions).
+  kX86_XRelease = 0x00020000u,
+
+  //! AVX-512: embedded-rounding {er} and implicit {sae}.
+  kX86_ER = 0x00040000u,
+  //! AVX-512: suppress-all-exceptions {sae}.
+  kX86_SAE = 0x00080000u,
+  //! AVX-512: round-to-nearest (even) {rn-sae} (bits 00).
+  kX86_RN_SAE = 0x00000000u,
+  //! AVX-512: round-down (toward -inf) {rd-sae} (bits 01).
+  kX86_RD_SAE = 0x00200000u,
+  //! AVX-512: round-up (toward +inf) {ru-sae} (bits 10).
+  kX86_RU_SAE = 0x00400000u,
+  //! AVX-512: round-toward-zero (truncate) {rz-sae} (bits 11).
+  kX86_RZ_SAE = 0x00600000u,
+  //! AVX-512: Use zeroing {k}{z} instead of merging {k}.
+  kX86_ZMask = 0x00800000u,
+
+  //! AVX-512: Mask to get embedded rounding bits (2 bits).
+  kX86_ERMask = kX86_RZ_SAE,
+  //! AVX-512: Mask of all possible AVX-512 options except EVEX prefix flag.
+  kX86_AVX512Mask = 0x00FC0000u,
+
+  //! Force REX.B and/or VEX.B field (X64 only).
+  kX86_OpCodeB = 0x01000000u,
+  //! Force REX.X and/or VEX.X field (X64 only).
+  kX86_OpCodeX = 0x02000000u,
+  //! Force REX.R and/or VEX.R field (X64 only).
+  kX86_OpCodeR = 0x04000000u,
+  //! Force REX.W and/or VEX.W field (X64 only).
+  kX86_OpCodeW = 0x08000000u,
+  //! Force REX prefix (X64 only).
+  kX86_Rex = 0x40000000u,
+  //! Invalid REX prefix (set by X86 or when AH|BH|CH|DH regs are used on X64).
+  kX86_InvalidRex = 0x80000000u
+};
+ASMJIT_DEFINE_ENUM_FLAGS(InstOptions)
+
+//! Instruction control flow.
+enum class InstControlFlow : uint32_t {
+  //! Regular instruction.
+  kRegular = 0u,
+  //! Unconditional jump.
+  kJump = 1u,
+  //! Conditional jump (branch).
+  kBranch = 2u,
+  //! Function call.
+  kCall = 3u,
+  //! Function return.
+  kReturn = 4u,
+
+  //! Maximum value of `InstType`.
+  kMaxValue = kReturn
+};
+
+//! Instruction id, options, and extraReg in a single structure. This structure exists mainly to simplify analysis
+//! and validation API that requires `BaseInst` and `Operand[]` array.
 class BaseInst {
 public:
-  //! Instruction id, see \ref BaseInst::Id or {arch-specific}::Inst::Id.
-  uint32_t _id;
-  //! Instruction options, see \ref BaseInst::Options or {arch-specific}::Inst::Options.
-  uint32_t _options;
-  //! Extra register used by instruction (either REP register or AVX-512 selector).
+  //! Instruction id.
+  InstId _id;
+  //! Instruction options.
+  InstOptions _options;
+  //! Extra register used by the instruction (either REP register or AVX-512 selector).
   RegOnly _extraReg;
 
   enum Id : uint32_t {
@@ -57,110 +181,37 @@ public:
     kIdAbstract = 0x80000000u
   };
 
-  enum Options : uint32_t {
-    //! Used internally by emitters for handling errors and rare cases.
-    kOptionReserved = 0x00000001u,
-
-    //! Prevents following a jump during compilation (BaseCompiler).
-    kOptionUnfollow = 0x00000002u,
-
-    //! Overwrite the destination operand(s) (BaseCompiler).
-    //!
-    //! Hint that is important for register liveness analysis. It tells the
-    //! compiler that the destination operand will be overwritten now or by
-    //! adjacent instructions. BaseCompiler knows when a register is completely
-    //! overwritten by a single instruction, for example you don't have to
-    //! mark "movaps" or "pxor x, x", however, if a pair of instructions is
-    //! used and the first of them doesn't completely overwrite the content
-    //! of the destination, BaseCompiler fails to mark that register as dead.
-    //!
-    //! X86 Specific
-    //! ------------
-    //!
-    //!   - All instructions that always overwrite at least the size of the
-    //!     register the virtual-register uses , for example "mov", "movq",
-    //!     "movaps" don't need the overwrite option to be used - conversion,
-    //!     shuffle, and other miscellaneous instructions included.
-    //!
-    //!   - All instructions that clear the destination register if all operands
-    //!     are the same, for example "xor x, x", "pcmpeqb x x", etc...
-    //!
-    //!   - Consecutive instructions that partially overwrite the variable until
-    //!     there is no old content require `BaseCompiler::overwrite()` to be used.
-    //!     Some examples (not always the best use cases thought):
-    //!
-    //!     - `movlps xmm0, ?` followed by `movhps xmm0, ?` and vice versa
-    //!     - `movlpd xmm0, ?` followed by `movhpd xmm0, ?` and vice versa
-    //!     - `mov al, ?` followed by `and ax, 0xFF`
-    //!     - `mov al, ?` followed by `mov ah, al`
-    //!     - `pinsrq xmm0, ?, 0` followed by `pinsrq xmm0, ?, 1`
-    //!
-    //!   - If allocated variable is used temporarily for scalar operations. For
-    //!     example if you allocate a full vector like `x86::Compiler::newXmm()`
-    //!     and then use that vector for scalar operations you should use
-    //!     `overwrite()` directive:
-    //!
-    //!     - `sqrtss x, y` - only LO element of `x` is changed, if you don't
-    //!       use HI elements, use `compiler.overwrite().sqrtss(x, y)`.
-    kOptionOverwrite = 0x00000004u,
-
-    //! Emit short-form of the instruction.
-    kOptionShortForm = 0x00000010u,
-    //! Emit long-form of the instruction.
-    kOptionLongForm = 0x00000020u,
-
-    //! Conditional jump is likely to be taken.
-    kOptionTaken = 0x00000040u,
-    //! Conditional jump is unlikely to be taken.
-    kOptionNotTaken = 0x00000080u
-  };
-
-  //! Control type.
-  enum ControlType : uint32_t {
-    //! No control type (doesn't jump).
-    kControlNone = 0u,
-    //! Unconditional jump.
-    kControlJump = 1u,
-    //! Conditional jump (branch).
-    kControlBranch = 2u,
-    //! Function call.
-    kControlCall = 3u,
-    //! Function return.
-    kControlReturn = 4u
-  };
-
   //! \name Construction & Destruction
   //! \{
 
   //! Creates a new BaseInst instance with `id` and `options` set.
   //!
-  //! Default values of `id` and `options` are zero, which means none instruciton.
-  //! Such instruction is guaranteed to never exist for any architecture supported
-  //! by AsmJit.
-  inline explicit BaseInst(uint32_t id = 0, uint32_t options = 0) noexcept
-    : _id(id),
+  //! Default values of `id` and `options` are zero, which means none instruciton. Such instruction is guaranteed to
+  //! never exist for any architecture supported by AsmJit.
+  inline explicit BaseInst(InstId instId = 0, InstOptions options = InstOptions::kNone) noexcept
+    : _id(instId),
       _options(options),
       _extraReg() {}
 
-  inline BaseInst(uint32_t id, uint32_t options, const RegOnly& extraReg) noexcept
-    : _id(id),
+  inline BaseInst(InstId instId, InstOptions options, const RegOnly& extraReg) noexcept
+    : _id(instId),
       _options(options),
       _extraReg(extraReg) {}
 
-  inline BaseInst(uint32_t id, uint32_t options, const BaseReg& extraReg) noexcept
-    : _id(id),
+  inline BaseInst(InstId instId, InstOptions options, const BaseReg& extraReg) noexcept
+    : _id(instId),
       _options(options),
       _extraReg { extraReg.signature(), extraReg.id() } {}
 
   //! \}
 
-  //! \name Instruction ID
+  //! \name Instruction Id
   //! \{
 
   //! Returns the instruction id.
-  inline uint32_t id() const noexcept { return _id; }
+  inline InstId id() const noexcept { return _id; }
   //! Sets the instruction id to the given `id`.
-  inline void setId(uint32_t id) noexcept { _id = id; }
+  inline void setId(InstId id) noexcept { _id = id; }
   //! Resets the instruction id to zero, see \ref kIdNone.
   inline void resetId() noexcept { _id = 0; }
 
@@ -169,12 +220,12 @@ public:
   //! \name Instruction Options
   //! \{
 
-  inline uint32_t options() const noexcept { return _options; }
-  inline bool hasOption(uint32_t option) const noexcept { return (_options & option) != 0; }
-  inline void setOptions(uint32_t options) noexcept { _options = options; }
-  inline void addOptions(uint32_t options) noexcept { _options |= options; }
-  inline void clearOptions(uint32_t options) noexcept { _options &= ~options; }
-  inline void resetOptions() noexcept { _options = 0; }
+  inline InstOptions options() const noexcept { return _options; }
+  inline bool hasOption(InstOptions option) const noexcept { return Support::test(_options, option); }
+  inline void setOptions(InstOptions options) noexcept { _options = options; }
+  inline void addOptions(InstOptions options) noexcept { _options |= options; }
+  inline void clearOptions(InstOptions options) noexcept { _options &= ~options; }
+  inline void resetOptions() noexcept { _options = InstOptions::kNone; }
 
   //! \}
 
@@ -191,14 +242,70 @@ public:
   //! \}
 };
 
-// ============================================================================
-// [asmjit::OpRWInfo]
-// ============================================================================
+//! Operand read/write flags describe how the operand is accessed and some additional features.
+enum class OpRWFlags {
+  //! No flags.
+  kNone = 0,
+
+  //! Operand is read.
+  kRead = 0x00000001u,
+
+  //! Operand is written.
+  kWrite = 0x00000002u,
+
+  //! Operand is both read and written.
+  kRW = 0x00000003u,
+
+  //! Register operand can be replaced by a memory operand.
+  kRegMem = 0x00000004u,
+
+  //! The `extendByteMask()` represents a zero extension.
+  kZExt = 0x00000010u,
+
+  //! Register operand must use \ref OpRWInfo::physId().
+  kRegPhysId = 0x00000100u,
+  //! Base register of a memory operand must use \ref OpRWInfo::physId().
+  kMemPhysId = 0x00000200u,
+
+  //! This memory operand is only used to encode registers and doesn't access memory.
+  //!
+  //! X86 Specific
+  //! ------------
+  //!
+  //! Instructions that use such feature include BNDLDX, BNDSTX, and LEA.
+  kMemFake = 0x000000400u,
+
+  //! Base register of the memory operand will be read.
+  kMemBaseRead = 0x00001000u,
+  //! Base register of the memory operand will be written.
+  kMemBaseWrite = 0x00002000u,
+  //! Base register of the memory operand will be read & written.
+  kMemBaseRW = 0x00003000u,
+
+  //! Index register of the memory operand will be read.
+  kMemIndexRead = 0x00004000u,
+  //! Index register of the memory operand will be written.
+  kMemIndexWrite = 0x00008000u,
+  //! Index register of the memory operand will be read & written.
+  kMemIndexRW = 0x0000C000u,
+
+  //! Base register of the memory operand will be modified before the operation.
+  kMemBasePreModify = 0x00010000u,
+  //! Base register of the memory operand will be modified after the operation.
+  kMemBasePostModify = 0x00020000u
+};
+ASMJIT_DEFINE_ENUM_FLAGS(OpRWFlags)
+
+// Don't remove these asserts. Read/Write flags are used extensively
+// by Compiler and they must always be compatible with constants below.
+static_assert(uint32_t(OpRWFlags::kRead) == 0x1, "OpRWFlags::kRead flag must be 0x1");
+static_assert(uint32_t(OpRWFlags::kWrite) == 0x2, "OpRWFlags::kWrite flag must be 0x2");
+static_assert(uint32_t(OpRWFlags::kRegMem) == 0x4, "OpRWFlags::kRegMem flag must be 0x4");
 
 //! Read/Write information related to a single operand, used by \ref InstRWInfo.
 struct OpRWInfo {
-  //! Read/Write flags, see \ref OpRWInfo::Flags.
-  uint32_t _opFlags;
+  //! Read/Write flags.
+  OpRWFlags _opFlags;
   //! Physical register index, if required.
   uint8_t _physId;
   //! Size of a possible memory operand that can replace a register operand.
@@ -212,62 +319,6 @@ struct OpRWInfo {
   //! Zero/Sign extend bit-mask where each bit represents one byte written to Reg/Mem.
   uint64_t _extendByteMask;
 
-  //! Flags describe how the operand is accessed and some additional information.
-  enum Flags : uint32_t {
-    //! Operand is read.
-    kRead = 0x00000001u,
-
-    //! Operand is written.
-    kWrite = 0x00000002u,
-
-    //! Operand is both read and written.
-    kRW = 0x00000003u,
-
-    //! Register operand can be replaced by a memory operand.
-    kRegMem = 0x00000004u,
-
-    //! The `extendByteMask()` represents a zero extension.
-    kZExt = 0x00000010u,
-
-    //! Register operand must use \ref physId().
-    kRegPhysId = 0x00000100u,
-    //! Base register of a memory operand must use \ref physId().
-    kMemPhysId = 0x00000200u,
-
-    //! This memory operand is only used to encode registers and doesn't access memory.
-    //!
-    //! X86 Specific
-    //! ------------
-    //!
-    //! Instructions that use such feature include BNDLDX, BNDSTX, and LEA.
-    kMemFake = 0x000000400u,
-
-    //! Base register of the memory operand will be read.
-    kMemBaseRead = 0x00001000u,
-    //! Base register of the memory operand will be written.
-    kMemBaseWrite = 0x00002000u,
-    //! Base register of the memory operand will be read & written.
-    kMemBaseRW = 0x00003000u,
-
-    //! Index register of the memory operand will be read.
-    kMemIndexRead = 0x00004000u,
-    //! Index register of the memory operand will be written.
-    kMemIndexWrite = 0x00008000u,
-    //! Index register of the memory operand will be read & written.
-    kMemIndexRW = 0x0000C000u,
-
-    //! Base register of the memory operand will be modified before the operation.
-    kMemBasePreModify = 0x00010000u,
-    //! Base register of the memory operand will be modified after the operation.
-    kMemBasePostModify = 0x00020000u
-  };
-
-  // Don't remove these asserts. Read/Write flags are used extensively
-  // by Compiler and they must always be compatible with constants below.
-  static_assert(kRead  == 0x1, "OpRWInfo::kRead flag must be 0x1");
-  static_assert(kWrite == 0x2, "OpRWInfo::kWrite flag must be 0x2");
-  static_assert(kRegMem == 0x4, "OpRWInfo::kRegMem flag must be 0x4");
-
   //! \name Reset
   //! \{
 
@@ -276,15 +327,15 @@ struct OpRWInfo {
 
   //! Resets this operand info (resets all members) and set common information
   //! to the given `opFlags`, `regSize`, and possibly `physId`.
-  inline void reset(uint32_t opFlags, uint32_t regSize, uint32_t physId = BaseReg::kIdBad) noexcept {
+  inline void reset(OpRWFlags opFlags, uint32_t regSize, uint32_t physId = BaseReg::kIdBad) noexcept {
     _opFlags = opFlags;
     _physId = uint8_t(physId);
-    _rmSize = uint8_t((opFlags & kRegMem) ? regSize : uint32_t(0));
+    _rmSize = Support::test(opFlags, OpRWFlags::kRegMem) ? uint8_t(regSize) : uint8_t(0);
     _resetReserved();
 
     uint64_t mask = Support::lsbMask<uint64_t>(regSize);
-    _readByteMask = opFlags & kRead ? mask : uint64_t(0);
-    _writeByteMask = opFlags & kWrite ? mask : uint64_t(0);
+    _readByteMask = Support::test(opFlags, OpRWFlags::kRead) ? mask : uint64_t(0);
+    _writeByteMask = Support::test(opFlags, OpRWFlags::kWrite) ? mask : uint64_t(0);
     _extendByteMask = 0;
   }
 
@@ -297,77 +348,74 @@ struct OpRWInfo {
   //! \name Operand Flags
   //! \{
 
-  //! Returns operand flags, see \ref Flags.
-  inline uint32_t opFlags() const noexcept { return _opFlags; }
+  //! Returns operand flags.
+  inline OpRWFlags opFlags() const noexcept { return _opFlags; }
   //! Tests whether operand flags contain the given `flag`.
-  inline bool hasOpFlag(uint32_t flag) const noexcept { return (_opFlags & flag) != 0; }
+  inline bool hasOpFlag(OpRWFlags flag) const noexcept { return Support::test(_opFlags, flag); }
 
   //! Adds the given `flags` to operand flags.
-  inline void addOpFlags(uint32_t flags) noexcept { _opFlags |= flags; }
+  inline void addOpFlags(OpRWFlags flags) noexcept { _opFlags |= flags; }
   //! Removes the given `flags` from operand flags.
-  inline void clearOpFlags(uint32_t flags) noexcept { _opFlags &= ~flags; }
+  inline void clearOpFlags(OpRWFlags flags) noexcept { _opFlags &= ~flags; }
 
   //! Tests whether this operand is read from.
-  inline bool isRead() const noexcept { return hasOpFlag(kRead); }
+  inline bool isRead() const noexcept { return hasOpFlag(OpRWFlags::kRead); }
   //! Tests whether this operand is written to.
-  inline bool isWrite() const noexcept { return hasOpFlag(kWrite); }
+  inline bool isWrite() const noexcept { return hasOpFlag(OpRWFlags::kWrite); }
   //! Tests whether this operand is both read and write.
-  inline bool isReadWrite() const noexcept { return (_opFlags & kRW) == kRW; }
+  inline bool isReadWrite() const noexcept { return (_opFlags & OpRWFlags::kRW) == OpRWFlags::kRW; }
   //! Tests whether this operand is read only.
-  inline bool isReadOnly() const noexcept { return (_opFlags & kRW) == kRead; }
+  inline bool isReadOnly() const noexcept { return (_opFlags & OpRWFlags::kRW) == OpRWFlags::kRead; }
   //! Tests whether this operand is write only.
-  inline bool isWriteOnly() const noexcept { return (_opFlags & kRW) == kWrite; }
+  inline bool isWriteOnly() const noexcept { return (_opFlags & OpRWFlags::kRW) == OpRWFlags::kWrite; }
 
   //! Tests whether this operand is Reg/Mem
   //!
   //! Reg/Mem operands can use either register or memory.
-  inline bool isRm() const noexcept { return hasOpFlag(kRegMem); }
+  inline bool isRm() const noexcept { return hasOpFlag(OpRWFlags::kRegMem); }
 
   //! Tests whether the operand will be zero extended.
-  inline bool isZExt() const noexcept { return hasOpFlag(kZExt); }
+  inline bool isZExt() const noexcept { return hasOpFlag(OpRWFlags::kZExt); }
 
   //! \}
 
   //! \name Memory Flags
   //! \{
 
-  //! Tests whether this is a fake memory operand, which is only used, because
-  //! of encoding. Fake memory operands do not access any memory, they are only
-  //! used to encode registers.
-  inline bool isMemFake() const noexcept { return hasOpFlag(kMemFake); }
+  //! Tests whether this is a fake memory operand, which is only used, because of encoding. Fake memory operands do
+  //! not access any memory, they are only used to encode registers.
+  inline bool isMemFake() const noexcept { return hasOpFlag(OpRWFlags::kMemFake); }
 
   //! Tests whether the instruction's memory BASE register is used.
-  inline bool isMemBaseUsed() const noexcept { return (_opFlags & kMemBaseRW) != 0; }
+  inline bool isMemBaseUsed() const noexcept { return hasOpFlag(OpRWFlags::kMemBaseRW); }
   //! Tests whether the instruction reads from its BASE registers.
-  inline bool isMemBaseRead() const noexcept { return hasOpFlag(kMemBaseRead); }
+  inline bool isMemBaseRead() const noexcept { return hasOpFlag(OpRWFlags::kMemBaseRead); }
   //! Tests whether the instruction writes to its BASE registers.
-  inline bool isMemBaseWrite() const noexcept { return hasOpFlag(kMemBaseWrite); }
+  inline bool isMemBaseWrite() const noexcept { return hasOpFlag(OpRWFlags::kMemBaseWrite); }
   //! Tests whether the instruction reads and writes from/to its BASE registers.
-  inline bool isMemBaseReadWrite() const noexcept { return (_opFlags & kMemBaseRW) == kMemBaseRW; }
+  inline bool isMemBaseReadWrite() const noexcept { return (_opFlags & OpRWFlags::kMemBaseRW) == OpRWFlags::kMemBaseRW; }
   //! Tests whether the instruction only reads from its BASE registers.
-  inline bool isMemBaseReadOnly() const noexcept { return (_opFlags & kMemBaseRW) == kMemBaseRead; }
+  inline bool isMemBaseReadOnly() const noexcept { return (_opFlags & OpRWFlags::kMemBaseRW) == OpRWFlags::kMemBaseRead; }
   //! Tests whether the instruction only writes to its BASE registers.
-  inline bool isMemBaseWriteOnly() const noexcept { return (_opFlags & kMemBaseRW) == kMemBaseWrite; }
+  inline bool isMemBaseWriteOnly() const noexcept { return (_opFlags & OpRWFlags::kMemBaseRW) == OpRWFlags::kMemBaseWrite; }
 
-  //! Tests whether the instruction modifies the BASE register before it uses
-  //! it to calculate the target address.
-  inline bool isMemBasePreModify() const noexcept { return hasOpFlag(kMemBasePreModify); }
-  //! Tests whether the instruction modifies the BASE register after it uses
-  //! it to calculate the target address.
-  inline bool isMemBasePostModify() const noexcept { return hasOpFlag(kMemBasePostModify); }
+  //! Tests whether the instruction modifies the BASE register before it uses it to calculate the target address.
+  inline bool isMemBasePreModify() const noexcept { return hasOpFlag(OpRWFlags::kMemBasePreModify); }
+  //! Tests whether the instruction modifies the BASE register after it uses it to calculate the target address.
+  inline bool isMemBasePostModify() const noexcept { return hasOpFlag(OpRWFlags::kMemBasePostModify); }
 
   //! Tests whether the instruction's memory INDEX register is used.
-  inline bool isMemIndexUsed() const noexcept { return (_opFlags & kMemIndexRW) != 0; }
+  inline bool isMemIndexUsed() const noexcept { return hasOpFlag(OpRWFlags::kMemIndexRW); }
   //! Tests whether the instruction reads the INDEX registers.
-  inline bool isMemIndexRead() const noexcept { return hasOpFlag(kMemIndexRead); }
+  inline bool isMemIndexRead() const noexcept { return hasOpFlag(OpRWFlags::kMemIndexRead); }
   //! Tests whether the instruction writes to its INDEX registers.
-  inline bool isMemIndexWrite() const noexcept { return hasOpFlag(kMemIndexWrite); }
+  inline bool isMemIndexWrite() const noexcept { return hasOpFlag(OpRWFlags::kMemIndexWrite); }
   //! Tests whether the instruction reads and writes from/to its INDEX registers.
-  inline bool isMemIndexReadWrite() const noexcept { return (_opFlags & kMemIndexRW) == kMemIndexRW; }
+  inline bool isMemIndexReadWrite() const noexcept { return (_opFlags & OpRWFlags::kMemIndexRW) == OpRWFlags::kMemIndexRW; }
   //! Tests whether the instruction only reads from its INDEX registers.
-  inline bool isMemIndexReadOnly() const noexcept { return (_opFlags & kMemIndexRW) == kMemIndexRead; }
+  inline bool isMemIndexReadOnly() const noexcept { return (_opFlags & OpRWFlags::kMemIndexRW) == OpRWFlags::kMemIndexRead; }
   //! Tests whether the instruction only writes to its INDEX registers.
-  inline bool isMemIndexWriteOnly() const noexcept { return (_opFlags & kMemIndexRW) == kMemIndexWrite; }
+  inline bool isMemIndexWriteOnly() const noexcept { return (_opFlags & OpRWFlags::kMemIndexRW) == OpRWFlags::kMemIndexWrite; }
 
   //! \}
 
@@ -415,10 +463,6 @@ struct OpRWInfo {
   //! \}
 };
 
-// ============================================================================
-// [asmjit::InstRWInfo]
-// ============================================================================
-
 //! Read/Write information of an instruction.
 struct InstRWInfo {
   //! Instruction flags (there are no flags at the moment, this field is reserved).
@@ -446,15 +490,6 @@ struct InstRWInfo {
 
   //! \}
 
-  //! \name Instruction Flags
-  //!
-  //! \{
-
-  inline uint32_t instFlags() const noexcept { return _instFlags; }
-  inline bool hasInstFlag(uint32_t flag) const noexcept { return (_instFlags & flag) != 0; }
-
-  //! }
-
   //! \name CPU Flags Read/Write Information
   //! \{
 
@@ -468,18 +503,16 @@ struct InstRWInfo {
   //! \name Reg/Mem Information
   //! \{
 
-  //! Returns the CPU feature required to replace a register operand with memory
-  //! operand. If the returned feature is zero (none) then this instruction
-  //! either doesn't provide memory operand combination or there is no extra
-  //! CPU feature required.
+  //! Returns the CPU feature required to replace a register operand with memory operand. If the returned feature is
+  //! zero (none) then this instruction either doesn't provide memory operand combination or there is no extra CPU
+  //! feature required.
   //!
   //! X86 Specific
   //! ------------
   //!
-  //! Some AVX+ instructions may require extra features for replacing registers
-  //! with memory operands, for example VPSLLDQ instruction only supports
-  //! 'reg/reg/imm' combination on AVX/AVX2 capable CPUs and requires AVX-512 for
-  //! 'reg/mem/imm' combination.
+  //! Some AVX+ instructions may require extra features for replacing registers with memory operands, for example
+  //! VPSLLDQ instruction only supports `vpslldq reg, reg, imm` combination on AVX/AVX2 capable CPUs and requires
+  //! AVX-512 for `vpslldq reg, mem, imm` combination.
   inline uint32_t rmFeature() const noexcept { return _rmFeature; }
 
   //! \}
@@ -505,49 +538,43 @@ struct InstRWInfo {
   //! \}
 };
 
-// ============================================================================
-// [asmjit::InstAPI]
-// ============================================================================
+//! Validation flags that can be used with \ref InstAPI::validate().
+enum class ValidationFlags : uint32_t {
+  //! No flags.
+  kNone = 0,
+  //! Allow virtual registers in the instruction.
+  kEnableVirtRegs = 0x01u
+};
+ASMJIT_DEFINE_ENUM_FLAGS(ValidationFlags)
 
 //! Instruction API.
 namespace InstAPI {
 
-//! Validation flags that can be used with \ref InstAPI::validate().
-enum ValidationFlags : uint32_t {
-  //! Allow virtual registers in the instruction.
-  kValidationFlagVirtRegs = 0x01u
-};
-
 #ifndef ASMJIT_NO_TEXT
-//! Appends the name of the instruction specified by `instId` and `instOptions`
-//! into the `output` string.
+//! Appends the name of the instruction specified by `instId` and `instOptions` into the `output` string.
 //!
-//! \note Instruction options would only affect instruction prefix & suffix,
-//! other options would be ignored. If `instOptions` is zero then only raw
-//! instruction name (without any additional text) will be appended.
-ASMJIT_API Error instIdToString(uint32_t arch, uint32_t instId, String& output) noexcept;
+//! \note Instruction options would only affect instruction prefix & suffix, other options would be ignored.
+//! If `instOptions` is zero then only raw instruction name (without any additional text) will be appended.
+ASMJIT_API Error instIdToString(Arch arch, InstId instId, String& output) noexcept;
 
-//! Parses an instruction name in the given string `s`. Length is specified
-//! by `len` argument, which can be `SIZE_MAX` if `s` is known to be null
-//! terminated.
+//! Parses an instruction name in the given string `s`. Length is specified by `len` argument, which can be
+//! `SIZE_MAX` if `s` is known to be null terminated.
 //!
-//! Returns the parsed instruction id or \ref BaseInst::kIdNone if no such
-//! instruction exists.
-ASMJIT_API uint32_t stringToInstId(uint32_t arch, const char* s, size_t len) noexcept;
+//! Returns the parsed instruction id or \ref BaseInst::kIdNone if no such instruction exists.
+ASMJIT_API uint32_t stringToInstId(Arch arch, const char* s, size_t len) noexcept;
 #endif // !ASMJIT_NO_TEXT
 
 #ifndef ASMJIT_NO_VALIDATION
-//! Validates the given instruction considering the validation `flags`, see
-//! \ref ValidationFlags.
-ASMJIT_API Error validate(uint32_t arch, const BaseInst& inst, const Operand_* operands, size_t opCount, uint32_t validationFlags = 0) noexcept;
+//! Validates the given instruction considering the given `validationFlags`.
+ASMJIT_API Error validate(Arch arch, const BaseInst& inst, const Operand_* operands, size_t opCount, ValidationFlags validationFlags = ValidationFlags::kNone) noexcept;
 #endif // !ASMJIT_NO_VALIDATION
 
 #ifndef ASMJIT_NO_INTROSPECTION
 //! Gets Read/Write information of the given instruction.
-ASMJIT_API Error queryRWInfo(uint32_t arch, const BaseInst& inst, const Operand_* operands, size_t opCount, InstRWInfo* out) noexcept;
+ASMJIT_API Error queryRWInfo(Arch arch, const BaseInst& inst, const Operand_* operands, size_t opCount, InstRWInfo* out) noexcept;
 
 //! Gets CPU features required by the given instruction.
-ASMJIT_API Error queryFeatures(uint32_t arch, const BaseInst& inst, const Operand_* operands, size_t opCount, BaseFeatures* out) noexcept;
+ASMJIT_API Error queryFeatures(Arch arch, const BaseInst& inst, const Operand_* operands, size_t opCount, CpuFeatures* out) noexcept;
 #endif // !ASMJIT_NO_INTROSPECTION
 
 } // {InstAPI}

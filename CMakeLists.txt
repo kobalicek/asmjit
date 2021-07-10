@@ -19,9 +19,8 @@ endif()
 include(CheckCXXCompilerFlag)
 include(GNUInstallDirs)
 
-# =============================================================================
-# [AsmJit - Deprecated]
-# =============================================================================
+# AsmJit - Deprecated
+# ===================
 
 if (DEFINED ASMJIT_BUILD_EMBED)
   message(DEPRECATION "ASMJIT_BUILD_EMBED is deprecated, use ASMJIT_EMBED")
@@ -33,9 +32,8 @@ if (DEFINED ASMJIT_BUILD_STATIC)
   set(ASMJIT_STATIC "${ASMJIT_BUILD_STATIC}")
 endif()
 
-# =============================================================================
-# [AsmJit - Configuration]
-# =============================================================================
+# AsmJit - Configuration
+# ======================
 
 if (NOT DEFINED ASMJIT_TEST)
   set(ASMJIT_TEST FALSE)
@@ -84,9 +82,8 @@ set(ASMJIT_NO_FOREIGN      "${ASMJIT_NO_FOREIGN}"      CACHE BOOL "Disable all f
 set(ASMJIT_NO_NATVIS       "${ASMJIT_NO_NATVIS}"       CACHE BOOL "Disable natvis support (embedding asmjit.natvis in PDB)")
 set(ASMJIT_NO_CUSTOM_FLAGS "${ASMJIT_NO_CUSTOM_FLAGS}" CACHE BOOL "Disable extra compilation flags added by AsmJit to its targets")
 
-# =============================================================================
-# [AsmJit - Project]
-# =============================================================================
+# AsmJit - Project
+# ================
 
 set(ASMJIT_INCLUDE_DIRS "${ASMJIT_DIR}/src")     # Include directory is the same as source dir.
 set(ASMJIT_DEPS "")                              # AsmJit dependencies (libraries) for the linker.
@@ -98,9 +95,8 @@ set(ASMJIT_PRIVATE_CFLAGS_REL "")                # Private compiler flags used b
 set(ASMJIT_SANITIZE_CFLAGS "")                   # Compiler flags required by currently enabled sanitizers.
 set(ASMJIT_SANITIZE_LFLAGS "")                   # Linker flags required by currently enabled sanitizers.
 
-# =============================================================================
-# [AsmJit - Utilities]
-# =============================================================================
+# AsmJit - Utilities
+# ==================
 
 function(asmjit_detect_cflags out)
   set(out_array ${${out}})
@@ -172,9 +168,8 @@ function(asmjit_add_target target target_type)
   endif()
 endfunction()
 
-# =============================================================================
-# [AsmJit - Compiler Support]
-# =============================================================================
+# AsmJit - Compiler Support
+# =========================
 
 set(ASMJIT_INCLUDE_DIRS "${ASMJIT_DIR}/src")     # Include directory is the same as source dir.
 set(ASMJIT_DEPS "")                              # AsmJit dependencies (libraries) for the linker.
@@ -283,9 +278,8 @@ foreach(build_option ASMJIT_STATIC
   endif()
 endforeach()
 
-# =============================================================================
-# [AsmJit - Linker Support]
-# =============================================================================
+# AsmJit - Linker Support
+# =======================
 
 if (WIN32)
   if(CMAKE_LINKER MATCHES "link\\.exe" OR CMAKE_LINKER MATCHES "lld-link\\.exe")
@@ -293,9 +287,8 @@ if (WIN32)
   endif()
 endif()
 
-# =============================================================================
-# [AsmJit - Source]
-# =============================================================================
+# AsmJit - Source
+# ===============
 
 set(ASMJIT_SRC_LIST
   asmjit/asmjit.h
@@ -324,7 +317,6 @@ set(ASMJIT_SRC_LIST
   asmjit/core/constpool.h
   asmjit/core/cpuinfo.cpp
   asmjit/core/cpuinfo.h
-  asmjit/core/datatypes.h
   asmjit/core/emithelper.cpp
   asmjit/core/emithelper_p.h
   asmjit/core/emitter.cpp
@@ -335,7 +327,6 @@ set(ASMJIT_SRC_LIST
   asmjit/core/environment.h
   asmjit/core/errorhandler.cpp
   asmjit/core/errorhandler.h
-  asmjit/core/features.h
   asmjit/core/formatter.cpp
   asmjit/core/formatter.h
   asmjit/core/func.cpp
@@ -401,8 +392,6 @@ set(ASMJIT_SRC_LIST
   asmjit/x86/x86emithelper.cpp
   asmjit/x86/x86emithelper_p.h
   asmjit/x86/x86emitter.h
-  asmjit/x86/x86features.cpp
-  asmjit/x86/x86features.h
   asmjit/x86/x86formatter.cpp
   asmjit/x86/x86formatter_p.h
   asmjit/x86/x86func.cpp
@@ -439,9 +428,8 @@ if (NOT ${CMAKE_VERSION} VERSION_LESS "3.8.0")
   source_group(TREE "${ASMJIT_DIR}" FILES ${ASMJIT_SRC})
 endif()
 
-# =============================================================================
-# [AsmJit - Summary]
-# =============================================================================
+# AsmJit - Summary
+# ================
 
 message("** AsmJit Summary **")
 message("   ASMJIT_DIR=${ASMJIT_DIR}")
@@ -454,9 +442,8 @@ message("   ASMJIT_PRIVATE_CFLAGS=${ASMJIT_PRIVATE_CFLAGS}")
 message("   ASMJIT_PRIVATE_CFLAGS_DBG=${ASMJIT_PRIVATE_CFLAGS_DBG}")
 message("   ASMJIT_PRIVATE_CFLAGS_REL=${ASMJIT_PRIVATE_CFLAGS_REL}")
 
-# =============================================================================
-# [AsmJit - Targets]
-# =============================================================================
+# AsmJit - Targets
+# ================
 
 if (NOT ASMJIT_EMBED)
   # Add AsmJit target.

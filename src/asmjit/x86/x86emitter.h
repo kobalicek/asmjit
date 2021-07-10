@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_X86_X86EMITTER_H_INCLUDED
 #define ASMJIT_X86_X86EMITTER_H_INCLUDED
@@ -121,10 +103,6 @@ ASMJIT_BEGIN_SUB_NAMESPACE(x86)
 //! \addtogroup asmjit_x86
 //! \{
 
-// ============================================================================
-// [asmjit::x86::EmitterExplicitT]
-// ============================================================================
-
 //! Emitter (X86 - explicit).
 template<typename This>
 struct EmitterExplicitT {
@@ -159,9 +137,8 @@ struct EmitterExplicitT {
 
   typedef Xmm XMM0;
 
-  // These two are unfortunately reported by the sanitizer. We know what we do,
-  // however, the sanitizer doesn't. I have tried to use reinterpret_cast instead,
-  // but that would generate bad code when compiled by MSC.
+  // These two are unfortunately reported by the sanitizer. We know what we do, however, the sanitizer doesn't.
+  // I have tried to use reinterpret_cast instead, but that would generate bad code when compiled by MSC.
   ASMJIT_ATTRIBUTE_NO_SANITIZE_UNDEF inline This* _emitter() noexcept { return static_cast<This*>(this); }
   ASMJIT_ATTRIBUTE_NO_SANITIZE_UNDEF inline const This* _emitter() const noexcept { return static_cast<const This*>(this); }
 
@@ -171,16 +148,16 @@ struct EmitterExplicitT {
   //! \{
 
   //! Returns either GPD or GPQ register of the given `id` depending on the emitter's architecture.
-  inline Gp gpz(uint32_t id) const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), id); }
+  inline Gp gpz(uint32_t id) const noexcept { return Gp(_emitter()->_gpSignature, id); }
 
-  inline Gp zax() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdAx); }
-  inline Gp zcx() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdCx); }
-  inline Gp zdx() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdDx); }
-  inline Gp zbx() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdBx); }
-  inline Gp zsp() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdSp); }
-  inline Gp zbp() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdBp); }
-  inline Gp zsi() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdSi); }
-  inline Gp zdi() const noexcept { return Gp::fromSignatureAndId(_emitter()->_gpRegInfo.signature(), Gp::kIdDi); }
+  inline Gp zax() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdAx); }
+  inline Gp zcx() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdCx); }
+  inline Gp zdx() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdDx); }
+  inline Gp zbx() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdBx); }
+  inline Gp zsp() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdSp); }
+  inline Gp zbp() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdBp); }
+  inline Gp zsi() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdSi); }
+  inline Gp zdi() const noexcept { return Gp(_emitter()->_gpSignature, Gp::kIdDi); }
 
   //! \}
 
@@ -189,7 +166,10 @@ struct EmitterExplicitT {
 
   //! Creates a target dependent pointer of which base register's id is `baseId`.
   inline Mem ptr_base(uint32_t baseId, int32_t off = 0, uint32_t size = 0) const noexcept {
-    return Mem(Mem::Decomposed { _emitter()->_gpRegInfo.type(), baseId, 0, 0, off, size, 0 });
+    return Mem(OperandSignature::fromOpType(OperandType::kMem) |
+               OperandSignature::fromMemBaseType(_emitter()->_gpSignature.regType()) |
+               OperandSignature::fromSize(size),
+               baseId, 0, off);
   }
 
   inline Mem ptr_zax(int32_t off = 0, uint32_t size = 0) const noexcept { return ptr_base(Gp::kIdAx, off, size); }
@@ -249,12 +229,12 @@ struct EmitterExplicitT {
   //! \overload
   inline Mem intptr_ptr_abs(uint64_t base) const noexcept {
     uint32_t nativeGpSize = _emitter()->registerSize();
-    return Mem(base, nativeGpSize, Mem::kSignatureMemAbs);
+    return Mem(base, nativeGpSize, OperandSignature::fromValue<Mem::kSignatureMemAddrTypeMask>(Mem::AddrType::kAbs));
   }
   //! \overload
   inline Mem intptr_ptr_abs(uint64_t base, const Gp& index, uint32_t shift = 0) const noexcept {
     uint32_t nativeGpSize = _emitter()->registerSize();
-    return Mem(base, index, shift, nativeGpSize, Mem::kSignatureMemAbs);
+    return Mem(base, index, shift, nativeGpSize, OperandSignature::fromValue<Mem::kSignatureMemAddrTypeMask>(Mem::AddrType::kRel));
   }
 
   //! \}
@@ -271,47 +251,6 @@ struct EmitterExplicitT {
   //! Embeds 64-bit integer data.
   inline Error dq(uint64_t x, size_t repeatCount = 1) { return _emitter()->embedUInt64(x, repeatCount); }
 
-#ifndef ASMJIT_NO_DEPRECATED
-  ASMJIT_DEPRECATED("Use embedInt8() instead of dint8()")
-  inline Error dint8(int8_t x) { return _emitter()->embed(&x, sizeof(int8_t)); }
-
-  ASMJIT_DEPRECATED("Use embedUInt8() instead of duint8()")
-  inline Error duint8(uint8_t x) { return _emitter()->embed(&x, sizeof(uint8_t)); }
-
-  ASMJIT_DEPRECATED("Use embedInt16() instead of dint16()")
-  inline Error dint16(int16_t x) { return _emitter()->embed(&x, sizeof(int16_t)); }
-
-  ASMJIT_DEPRECATED("Use embedUInt16() instead of duint16()")
-  inline Error duint16(uint16_t x) { return _emitter()->embed(&x, sizeof(uint16_t)); }
-
-  ASMJIT_DEPRECATED("Use embedInt32() instead of dint32()")
-  inline Error dint32(int32_t x) { return _emitter()->embed(&x, sizeof(int32_t)); }
-
-  ASMJIT_DEPRECATED("Use embedUInt32() instead of duint32()")
-  inline Error duint32(uint32_t x) { return _emitter()->embed(&x, sizeof(uint32_t)); }
-
-  ASMJIT_DEPRECATED("Use embedInt64() instead of dint64()")
-  inline Error dint64(int64_t x) { return _emitter()->embed(&x, sizeof(int64_t)); }
-
-  ASMJIT_DEPRECATED("Use embedUInt64() instead of duint64()")
-  inline Error duint64(uint64_t x) { return _emitter()->embed(&x, sizeof(uint64_t)); }
-
-  ASMJIT_DEPRECATED("Use embedFloat() instead of float()")
-  inline Error dfloat(float x) { return _emitter()->embed(&x, sizeof(float)); }
-
-  ASMJIT_DEPRECATED("Use embedDouble() instead of ddouble()")
-  inline Error ddouble(double x) { return _emitter()->embed(&x, sizeof(double)); }
-
-  ASMJIT_DEPRECATED("Use embed[U]IntN() or embed[Float|Double]() instead of dmm()")
-  inline Error dmm(const Data64& x) { return _emitter()->embed(&x, 8); }
-
-  ASMJIT_DEPRECATED("Use embed[U]IntN() or embed[Float|Double]() instead of dxmm()")
-  inline Error dxmm(const Data128& x) { return _emitter()->embed(&x, 16); }
-
-  ASMJIT_DEPRECATED("Use embed[U]IntN() or embed[Float|Double]() instead of dymm()")
-  inline Error dymm(const Data256& x) { return _emitter()->embed(&x, 32); }
-#endif // !ASMJIT_NO_DEPRECATED
-
   //! Adds data in a given structure instance to the CodeBuffer.
   template<typename T>
   inline Error dstruct(const T& x) { return _emitter()->embed(&x, uint32_t(sizeof(T))); }
@@ -320,7 +259,7 @@ struct EmitterExplicitT {
 
 protected:
   //! \cond
-  inline This& _addInstOptions(uint32_t options) noexcept {
+  inline This& _addInstOptions(InstOptions options) noexcept {
     _emitter()->addInstOptions(options);
     return *_emitter();
   }
@@ -331,9 +270,9 @@ public:
   //! \{
 
   //! Force short form of jmp/jcc instruction.
-  inline This& short_() noexcept { return _addInstOptions(Inst::kOptionShortForm); }
+  inline This& short_() noexcept { return _addInstOptions(InstOptions::kShortForm); }
   //! Force long form of jmp/jcc instruction.
-  inline This& long_() noexcept { return _addInstOptions(Inst::kOptionLongForm); }
+  inline This& long_() noexcept { return _addInstOptions(InstOptions::kLongForm); }
 
   //! \}
 
@@ -341,10 +280,10 @@ public:
   //! \{
 
   //! Prefer MOD/RM encoding when both MOD/RM and MOD/MR forms are applicable.
-  inline This& mod_rm() noexcept { return _addInstOptions(Inst::kOptionModRM); }
+  inline This& mod_rm() noexcept { return _addInstOptions(InstOptions::kX86_ModRM); }
 
   //! Prefer MOD/MR encoding when both MOD/RM and MOD/MR forms are applicable.
-  inline This& mod_mr() noexcept { return _addInstOptions(Inst::kOptionModMR); }
+  inline This& mod_mr() noexcept { return _addInstOptions(InstOptions::kX86_ModMR); }
 
   //! \}
 
@@ -352,28 +291,28 @@ public:
   //! \{
 
   //! Condition is likely to be taken (has only benefit on P4).
-  inline This& taken() noexcept { return _addInstOptions(Inst::kOptionTaken); }
+  inline This& taken() noexcept { return _addInstOptions(InstOptions::kTaken); }
   //! Condition is unlikely to be taken (has only benefit on P4).
-  inline This& notTaken() noexcept { return _addInstOptions(Inst::kOptionNotTaken); }
+  inline This& notTaken() noexcept { return _addInstOptions(InstOptions::kNotTaken); }
 
   //! Use LOCK prefix.
-  inline This& lock() noexcept { return _addInstOptions(Inst::kOptionLock); }
+  inline This& lock() noexcept { return _addInstOptions(InstOptions::kX86_Lock); }
   //! Use XACQUIRE prefix.
-  inline This& xacquire() noexcept { return _addInstOptions(Inst::kOptionXAcquire); }
+  inline This& xacquire() noexcept { return _addInstOptions(InstOptions::kX86_XAcquire); }
   //! Use XRELEASE prefix.
-  inline This& xrelease() noexcept { return _addInstOptions(Inst::kOptionXRelease); }
+  inline This& xrelease() noexcept { return _addInstOptions(InstOptions::kX86_XRelease); }
 
   //! Use BND/REPNE prefix.
   //!
   //! \note This is the same as using `repne()` or `repnz()` prefix.
-  inline This& bnd() noexcept { return _addInstOptions(Inst::kOptionRepne); }
+  inline This& bnd() noexcept { return _addInstOptions(InstOptions::kX86_Repne); }
 
   //! Use REP/REPZ prefix.
   //!
   //! \note This is the same as using `repe()` or `repz()` prefix.
   inline This& rep(const Gp& zcx) noexcept {
     _emitter()->_extraReg.init(zcx);
-    return _addInstOptions(Inst::kOptionRep);
+    return _addInstOptions(InstOptions::kX86_Rep);
   }
 
   //! Use REP/REPE prefix.
@@ -391,7 +330,7 @@ public:
   //! \note This is the same as using `bnd()` or `repnz()` prefix.
   inline This& repne(const Gp& zcx) noexcept {
     _emitter()->_extraReg.init(zcx);
-    return _addInstOptions(Inst::kOptionRepne);
+    return _addInstOptions(InstOptions::kX86_Repne);
   }
 
   //! Use REPNE prefix.
@@ -406,18 +345,18 @@ public:
 
   //! Force REX prefix to be emitted even when it's not needed (X86_64).
   //!
-  //! \note Don't use when using high 8-bit registers as REX prefix makes them
-  //! inaccessible and `x86::Assembler` would fail to encode such instruction.
-  inline This& rex() noexcept { return _addInstOptions(Inst::kOptionRex); }
+  //! \note Don't use when using high 8-bit registers as REX prefix makes them inaccessible and `x86::Assembler`
+  //! would fail to encode such instruction.
+  inline This& rex() noexcept { return _addInstOptions(InstOptions::kX86_Rex); }
 
   //! Force REX.B prefix (X64) [It exists for special purposes only].
-  inline This& rex_b() noexcept { return _addInstOptions(Inst::kOptionOpCodeB); }
+  inline This& rex_b() noexcept { return _addInstOptions(InstOptions::kX86_OpCodeB); }
   //! Force REX.X prefix (X64) [It exists for special purposes only].
-  inline This& rex_x() noexcept { return _addInstOptions(Inst::kOptionOpCodeX); }
+  inline This& rex_x() noexcept { return _addInstOptions(InstOptions::kX86_OpCodeX); }
   //! Force REX.R prefix (X64) [It exists for special purposes only].
-  inline This& rex_r() noexcept { return _addInstOptions(Inst::kOptionOpCodeR); }
+  inline This& rex_r() noexcept { return _addInstOptions(InstOptions::kX86_OpCodeR); }
   //! Force REX.W prefix (X64) [It exists for special purposes only].
-  inline This& rex_w() noexcept { return _addInstOptions(Inst::kOptionOpCodeW); }
+  inline This& rex_w() noexcept { return _addInstOptions(InstOptions::kX86_OpCodeW); }
 
   //! \}
 
@@ -425,11 +364,11 @@ public:
   //! \{
 
   //! Use VEX prefix instead of EVEX prefix (useful to select AVX_VNNI instruction instead of AVX512_VNNI).
-  inline This& vex() noexcept { return _addInstOptions(Inst::kOptionVex); }
+  inline This& vex() noexcept { return _addInstOptions(InstOptions::kX86_Vex); }
   //! Force 3-byte VEX prefix (AVX+).
-  inline This& vex3() noexcept { return _addInstOptions(Inst::kOptionVex3); }
+  inline This& vex3() noexcept { return _addInstOptions(InstOptions::kX86_Vex3); }
   //! Force 4-byte EVEX prefix (AVX512+).
-  inline This& evex() noexcept { return _addInstOptions(Inst::kOptionEvex); }
+  inline This& evex() noexcept { return _addInstOptions(InstOptions::kX86_Evex); }
 
   //! \}
 
@@ -443,18 +382,18 @@ public:
   }
 
   //! Use zeroing instead of merging (AVX512+).
-  inline This& z() noexcept { return _addInstOptions(Inst::kOptionZMask); }
+  inline This& z() noexcept { return _addInstOptions(InstOptions::kX86_ZMask); }
 
   //! Suppress all exceptions (AVX512+).
-  inline This& sae() noexcept { return _addInstOptions(Inst::kOptionSAE); }
+  inline This& sae() noexcept { return _addInstOptions(InstOptions::kX86_SAE); }
   //! Static rounding mode {rn} (round-to-nearest even) and {sae} (AVX512+).
-  inline This& rn_sae() noexcept { return _addInstOptions(Inst::kOptionER | Inst::kOptionRN_SAE); }
+  inline This& rn_sae() noexcept { return _addInstOptions(InstOptions::kX86_ER | InstOptions::kX86_RN_SAE); }
   //! Static rounding mode {rd} (round-down, toward -inf) and {sae} (AVX512+).
-  inline This& rd_sae() noexcept { return _addInstOptions(Inst::kOptionER | Inst::kOptionRD_SAE); }
+  inline This& rd_sae() noexcept { return _addInstOptions(InstOptions::kX86_ER | InstOptions::kX86_RD_SAE); }
   //! Static rounding mode {ru} (round-up, toward +inf) and {sae} (AVX512+).
-  inline This& ru_sae() noexcept { return _addInstOptions(Inst::kOptionER | Inst::kOptionRU_SAE); }
+  inline This& ru_sae() noexcept { return _addInstOptions(InstOptions::kX86_ER | InstOptions::kX86_RU_SAE); }
   //! Static rounding mode {rz} (round-toward-zero, truncate) and {sae} (AVX512+).
-  inline This& rz_sae() noexcept { return _addInstOptions(Inst::kOptionER | Inst::kOptionRZ_SAE); }
+  inline This& rz_sae() noexcept { return _addInstOptions(InstOptions::kX86_ER | InstOptions::kX86_RZ_SAE); }
 
   //! \}
 
@@ -3740,10 +3679,6 @@ public:
   //! \}
 };
 
-// ============================================================================
-// [asmjit::x86::EmitterImplicitT]
-// ============================================================================
-
 //! Emitter (X86 - implicit).
 template<typename This>
 struct EmitterImplicitT : public EmitterExplicitT<This> {
@@ -3755,14 +3690,14 @@ struct EmitterImplicitT : public EmitterExplicitT<This> {
   //! \{
 
   //! Use REP/REPE prefix.
-  inline This& rep() noexcept { return EmitterExplicitT<This>::_addInstOptions(Inst::kOptionRep); }
+  inline This& rep() noexcept { return EmitterExplicitT<This>::_addInstOptions(InstOptions::kX86_Rep); }
   //! Use REP/REPE prefix.
   inline This& repe() noexcept { return rep(); }
   //! Use REP/REPE prefix.
   inline This& repz() noexcept { return rep(); }
 
   //! Use REPNE prefix.
-  inline This& repne() noexcept { return EmitterExplicitT<This>::_addInstOptions(Inst::kOptionRepne); }
+  inline This& repne() noexcept { return EmitterExplicitT<This>::_addInstOptions(InstOptions::kX86_Repne); }
   //! Use REPNE prefix.
   inline This& repnz() noexcept { return repne(); }
 
@@ -4133,16 +4068,11 @@ struct EmitterImplicitT : public EmitterExplicitT<This> {
   //! \}
 };
 
-// ============================================================================
-// [asmjit::x86::Emitter]
-// ============================================================================
-
 //! Emitter (X86).
 //!
-//! \note This class cannot be instantiated, you can only cast to it and use
-//! it as emitter that emits to either `x86::Assembler`, `x86::Builder`, or
-//! `x86::Compiler` (use with caution with `x86::Compiler` as it requires virtual
-//! registers).
+//! \note This class cannot be instantiated, you can only cast to it and use it as emitter that emits to either
+//! `x86::Assembler`, `x86::Builder`, or `x86::Compiler` (use with caution with `x86::Compiler` as it requires
+//! virtual registers).
 class Emitter : public BaseEmitter, public EmitterImplicitT<Emitter> {
   ASMJIT_NONCONSTRUCTIBLE(Emitter)
 };

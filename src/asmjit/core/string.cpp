@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #include "../core/api-build_p.h"
 #include "../core/string.h"
@@ -27,18 +9,16 @@
 
 ASMJIT_BEGIN_NAMESPACE
 
-// ============================================================================
-// [asmjit::String - Globals]
-// ============================================================================
+// String - Globals
+// ================
 
 static const char String_baseN[] = "0123456789ABCDEF";
 
 constexpr size_t kMinAllocSize = 64;
 constexpr size_t kMaxAllocSize = SIZE_MAX - Globals::kGrowThreshold;
 
-// ============================================================================
-// [asmjit::String]
-// ============================================================================
+// String - Clear & Reset
+// ======================
 
 Error String::reset() noexcept {
   if (_type == kTypeLarge)
@@ -60,7 +40,10 @@ Error String::clear() noexcept {
   return kErrorOk;
 }
 
-char* String::prepare(uint32_t op, size_t size) noexcept {
+// String - Prepare
+// ================
+
+char* String::prepare(ModifyOp op, size_t size) noexcept {
   char* curData;
   size_t curSize;
   size_t curCapacity;
@@ -76,7 +59,7 @@ char* String::prepare(uint32_t op, size_t size) noexcept {
     curCapacity = kSSOCapacity;
   }
 
-  if (op == kOpAssign) {
+  if (op == ModifyOp::kAssign) {
     if (size > curCapacity) {
       // Prevent arithmetic overflow.
       if (ASMJIT_UNLIKELY(size >= kMaxAllocSize))
@@ -150,6 +133,9 @@ char* String::prepare(uint32_t op, size_t size) noexcept {
   }
 }
 
+// String - Assign
+// ===============
+
 Error String::assign(const char* data, size_t size) noexcept {
   char* dst = nullptr;
 
@@ -210,11 +196,10 @@ Error String::assign(const char* data, size_t size) noexcept {
   return kErrorOk;
 }
 
-// ============================================================================
-// [asmjit::String - Operations]
-// ============================================================================
+// String - Operations
+// ===================
 
-Error String::_opString(uint32_t op, const char* str, size_t size) noexcept {
+Error String::_opString(ModifyOp op, const char* str, size_t size) noexcept {
   if (size == SIZE_MAX)
     size = str ? strlen(str) : size_t(0);
 
@@ -229,7 +214,7 @@ Error String::_opString(uint32_t op, const char* str, size_t size) noexcept {
   return kErrorOk;
 }
 
-Error String::_opChar(uint32_t op, char c) noexcept {
+Error String::_opChar(ModifyOp op, char c) noexcept {
   char* p = prepare(op, 1);
   if (!p)
     return DebugUtils::errored(kErrorOutOfMemory);
@@ -238,7 +223,7 @@ Error String::_opChar(uint32_t op, char c) noexcept {
   return kErrorOk;
 }
 
-Error String::_opChars(uint32_t op, char c, size_t n) noexcept {
+Error String::_opChars(ModifyOp op, char c, size_t n) noexcept {
   if (!n)
     return kErrorOk;
 
@@ -255,7 +240,7 @@ Error String::padEnd(size_t n, char c) noexcept {
   return n > size ? appendChars(c, n - size) : kErrorOk;
 }
 
-Error String::_opNumber(uint32_t op, uint64_t i, uint32_t base, size_t width, uint32_t flags) noexcept {
+Error String::_opNumber(ModifyOp op, uint64_t i, uint32_t base, size_t width, uint32_t flags) noexcept {
   if (base == 0)
     base = 10;
 
@@ -265,9 +250,8 @@ Error String::_opNumber(uint32_t op, uint64_t i, uint32_t base, size_t width, ui
   uint64_t orig = i;
   char sign = '\0';
 
-  // --------------------------------------------------------------------------
-  // [Sign]
-  // --------------------------------------------------------------------------
+  // Format Sign
+  // -----------
 
   if ((flags & kFormatSigned) != 0 && int64_t(i) < 0) {
     i = uint64_t(-int64_t(i));
@@ -280,9 +264,8 @@ Error String::_opNumber(uint32_t op, uint64_t i, uint32_t base, size_t width, ui
     sign = ' ';
   }
 
-  // --------------------------------------------------------------------------
-  // [Number]
-  // --------------------------------------------------------------------------
+  // Format Number
+  // -------------
 
   switch (base) {
     case 2:
@@ -320,9 +303,8 @@ Error String::_opNumber(uint32_t op, uint64_t i, uint32_t base, size_t width, ui
 
   size_t numberSize = (size_t)(buf + ASMJIT_ARRAY_SIZE(buf) - p);
 
-  // --------------------------------------------------------------------------
-  // [Alternate Form]
-  // --------------------------------------------------------------------------
+  // Alternate Form
+  // --------------
 
   if ((flags & kFormatAlternate) != 0) {
     if (base == 8) {
@@ -335,9 +317,8 @@ Error String::_opNumber(uint32_t op, uint64_t i, uint32_t base, size_t width, ui
     }
   }
 
-  // --------------------------------------------------------------------------
-  // [Width]
-  // --------------------------------------------------------------------------
+  // String Width
+  // ------------
 
   if (sign != 0)
     *--p = sign;
@@ -350,9 +331,8 @@ Error String::_opNumber(uint32_t op, uint64_t i, uint32_t base, size_t width, ui
   else
     width -= numberSize;
 
-  // --------------------------------------------------------------------------
-  // Write]
-  // --------------------------------------------------------------------------
+  // Finalize
+  // --------
 
   size_t prefixSize = (size_t)(buf + ASMJIT_ARRAY_SIZE(buf) - p) - numberSize;
   char* data = prepare(op, prefixSize + width + numberSize);
@@ -370,7 +350,7 @@ Error String::_opNumber(uint32_t op, uint64_t i, uint32_t base, size_t width, ui
   return kErrorOk;
 }
 
-Error String::_opHex(uint32_t op, const void* data, size_t size, char separator) noexcept {
+Error String::_opHex(ModifyOp op, const void* data, size_t size, char separator) noexcept {
   char* dst;
   const uint8_t* src = static_cast<const uint8_t*>(data);
 
@@ -414,7 +394,7 @@ Error String::_opHex(uint32_t op, const void* data, size_t size, char separator)
   return kErrorOk;
 }
 
-Error String::_opFormat(uint32_t op, const char* fmt, ...) noexcept {
+Error String::_opFormat(ModifyOp op, const char* fmt, ...) noexcept {
   Error err;
   va_list ap;
 
@@ -425,8 +405,8 @@ Error String::_opFormat(uint32_t op, const char* fmt, ...) noexcept {
   return err;
 }
 
-Error String::_opVFormat(uint32_t op, const char* fmt, va_list ap) noexcept {
-  size_t startAt = (op == kOpAssign) ? size_t(0) : size();
+Error String::_opVFormat(ModifyOp op, const char* fmt, va_list ap) noexcept {
+  size_t startAt = (op == ModifyOp::kAssign) ? size_t(0) : size();
   size_t remainingCapacity = capacity() - startAt;
 
   char buf[1024];
@@ -504,9 +484,8 @@ bool String::eq(const char* other, size_t size) const noexcept {
   }
 }
 
-// ============================================================================
-// [asmjit::Support - Unit]
-// ============================================================================
+// String - Tests
+// ==============
 
 #if defined(ASMJIT_TEST)
 UNIT(core_string) {

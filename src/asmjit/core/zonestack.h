@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_ZONESTACK_H_INCLUDED
 #define ASMJIT_CORE_ZONESTACK_H_INCLUDED
@@ -30,10 +12,6 @@ ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_zone
 //! \{
-
-// ============================================================================
-// [asmjit::ZoneStackBase]
-// ============================================================================
 
 //! Base class used by \ref ZoneStack.
 class ZoneStackBase {
@@ -80,12 +58,17 @@ public:
     void* _end;                          //!< Pointer to the end of the array.
   };
 
+  //! \name Members
+  //! \{
+
   //! Allocator used to allocate data.
   ZoneAllocator* _allocator;
   //! First and last blocks.
   Block* _block[Globals::kLinkCount];
 
-  //! \name Construction / Destruction
+  //! \}
+
+  //! \name Construction & Destruction
   //! \{
 
   inline ZoneStackBase() noexcept {
@@ -125,15 +108,14 @@ public:
   //! \endcond
 };
 
-// ============================================================================
-// [asmjit::ZoneStack<T>]
-// ============================================================================
-
 //! Zone allocated stack container.
 template<typename T>
 class ZoneStack : public ZoneStackBase {
 public:
   ASMJIT_NONCOPYABLE(ZoneStack<T>)
+
+  //! \name Constants
+  //! \{
 
   enum : uint32_t {
     kNumBlockItems   = uint32_t((kBlockSize - sizeof(Block)) / sizeof(T)),
@@ -142,7 +124,9 @@ public:
     kEndBlockIndex   = uint32_t(kStartBlockIndex + (kNumBlockItems    ) * sizeof(T))
   };
 
-  //! \name Construction / Destruction
+  //! \}
+
+  //! \name Construction & Destruction
   //! \{
 
   inline ZoneStack() noexcept {}
@@ -155,7 +139,7 @@ public:
   //! \name Utilities
   //! \{
 
-  ASMJIT_INLINE Error prepend(T item) noexcept {
+  inline Error prepend(T item) noexcept {
     ASMJIT_ASSERT(isInitialized());
     Block* block = _block[Globals::kLinkFirst];
 
@@ -171,7 +155,7 @@ public:
     return kErrorOk;
   }
 
-  ASMJIT_INLINE Error append(T item) noexcept {
+  inline Error append(T item) noexcept {
     ASMJIT_ASSERT(isInitialized());
     Block* block = _block[Globals::kLinkLast];
 
@@ -188,7 +172,7 @@ public:
     return kErrorOk;
   }
 
-  ASMJIT_INLINE T popFirst() noexcept {
+  inline T popFirst() noexcept {
     ASMJIT_ASSERT(isInitialized());
     ASMJIT_ASSERT(!empty());
 
@@ -205,7 +189,7 @@ public:
     return item;
   }
 
-  ASMJIT_INLINE T pop() noexcept {
+  inline T pop() noexcept {
     ASMJIT_ASSERT(isInitialized());
     ASMJIT_ASSERT(!empty());
 

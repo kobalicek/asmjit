@@ -1,25 +1,7 @@
-// AsmJit - Machine code generation for C++
+// This file is part of AsmJit project <https://asmjit.com>
 //
-//  * Official AsmJit Home Page: https://asmjit.com
-//  * Official Github Repository: https://github.com/asmjit/asmjit
-//
-// Copyright (c) 2008-2020 The AsmJit Authors
-//
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
-//
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would be
-//    appreciated but is not required.
-// 2. Altered source versions must be plainly marked as such, and must not be
-//    misrepresented as being the original software.
-// 3. This notice may not be removed or altered from any source distribution.
+// See asmjit.h or LICENSE.md for license and copyright information
+// SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_COMPILER_H_INCLUDED
 #define ASMJIT_CORE_COMPILER_H_INCLUDED
@@ -40,10 +22,6 @@
 
 ASMJIT_BEGIN_NAMESPACE
 
-// ============================================================================
-// [Forward Declarations]
-// ============================================================================
-
 class JumpAnnotation;
 class JumpNode;
 class FuncNode;
@@ -53,25 +31,18 @@ class InvokeNode;
 //! \addtogroup asmjit_compiler
 //! \{
 
-// ============================================================================
-// [asmjit::BaseCompiler]
-// ============================================================================
-
 //! Code emitter that uses virtual registers and performs register allocation.
 //!
-//! Compiler is a high-level code-generation tool that provides register
-//! allocation and automatic handling of function calling conventions. It was
-//! primarily designed for merging multiple parts of code into a function
-//! without worrying about registers and function calling conventions.
+//! Compiler is a high-level code-generation tool that provides register allocation and automatic handling of function
+//! calling conventions. It was primarily designed for merging multiple parts of code into a function without worrying
+//! about registers and function calling conventions.
 //!
-//! BaseCompiler can be used, with a minimum effort, to handle 32-bit and
-//! 64-bit code generation within a single code base.
+//! BaseCompiler can be used, with a minimum effort, to handle 32-bit and 64-bit code generation within a single code
+//! base.
 //!
-//! BaseCompiler is based on BaseBuilder and contains all the features it
-//! provides. It means that the code it stores can be modified (removed, added,
-//! injected) and analyzed. When the code is finalized the compiler can emit
-//! the code into an Assembler to translate the abstract representation into a
-//! machine code.
+//! BaseCompiler is based on BaseBuilder and contains all the features it provides. It means that the code it stores
+//! can be modified (removed, added, injected) and analyzed. When the code is finalized the compiler can emit the code
+//! into an Assembler to translate the abstract representation into a machine code.
 //!
 //! Check out architecture specific compilers for more details and examples:
 //!
@@ -90,10 +61,10 @@ public:
   //! Stores jump annotations.
   ZoneVector<JumpAnnotation*> _jumpAnnotations;
 
-  //! Local constant pool, flushed at the end of each function.
-  ConstPoolNode* _localConstPool;
-  //! Global constant pool, flushed by `finalize()`.
-  ConstPoolNode* _globalConstPool;
+  //! Local and global constant pools.
+  //!
+  //! Local constant pool is flushed with each function, global constant pool is flushed only by \ref finalize().
+  ConstPoolNode* _constPools[2];
 
   //! \name Construction & Destruction
   //! \{
@@ -128,8 +99,8 @@ public:
     return node;
   }
 
-  //! Creates a new \ref FuncNode with the given `signature`, adds it to the
-  //! compiler by using the \ref addFunc(FuncNode*) overload, and returns it.
+  //! Creates a new \ref FuncNode with the given `signature`, adds it to the compiler by using the
+  //! \ref addFunc(FuncNode*) overload, and returns it.
   inline FuncNode* addFunc(const FuncSignature& signature) {
     FuncNode* node;
     _addFuncNode(&node, signature);
@@ -166,19 +137,19 @@ public:
   //! \{
 
   //! Creates a new \ref InvokeNode.
-  ASMJIT_API Error _newInvokeNode(InvokeNode** out, uint32_t instId, const Operand_& o0, const FuncSignature& signature);
+  ASMJIT_API Error _newInvokeNode(InvokeNode** out, InstId instId, const Operand_& o0, const FuncSignature& signature);
   //! Creates a new \ref InvokeNode and adds it to Compiler.
-  ASMJIT_API Error _addInvokeNode(InvokeNode** out, uint32_t instId, const Operand_& o0, const FuncSignature& signature);
+  ASMJIT_API Error _addInvokeNode(InvokeNode** out, InstId instId, const Operand_& o0, const FuncSignature& signature);
 
   //! Creates a new `InvokeNode`.
-  inline InvokeNode* newCall(uint32_t instId, const Operand_& o0, const FuncSignature& signature) {
+  inline InvokeNode* newCall(InstId instId, const Operand_& o0, const FuncSignature& signature) {
     InvokeNode* node;
     _newInvokeNode(&node, instId, o0, signature);
     return node;
   }
 
   //! Adds a new `InvokeNode`.
-  inline InvokeNode* addCall(uint32_t instId, const Operand_& o0, const FuncSignature& signature) {
+  inline InvokeNode* addCall(InstId instId, const Operand_& o0, const FuncSignature& signature) {
     InvokeNode* node;
     _addInvokeNode(&node, instId, o0, signature);
     return node;
@@ -191,18 +162,17 @@ public:
 
   //! Creates a new virtual register representing the given `typeId` and `signature`.
   //!
-  //! \note This function is public, but it's not generally recommended to be used
-  //! by AsmJit users, use architecture-specific `newReg()` functionality instead
-  //! or functions like \ref _newReg() and \ref _newRegFmt().
-  ASMJIT_API Error newVirtReg(VirtReg** out, uint32_t typeId, uint32_t signature, const char* name);
+  //! \note This function is public, but it's not generally recommended to be used by AsmJit users, use architecture
+  //! specific `newReg()` functionality instead or functions like \ref _newReg() and \ref _newRegFmt().
+  ASMJIT_API Error newVirtReg(VirtReg** out, TypeId typeId, OperandSignature signature, const char* name);
 
   //! Creates a new virtual register of the given `typeId` and stores it to `out` operand.
-  ASMJIT_API Error _newReg(BaseReg* out, uint32_t typeId, const char* name = nullptr);
+  ASMJIT_API Error _newReg(BaseReg* out, TypeId typeId, const char* name = nullptr);
 
   //! Creates a new virtual register of the given `typeId` and stores it to `out` operand.
   //!
   //! \note This version accepts a snprintf() format `fmt` followed by a variadic arguments.
-  ASMJIT_API Error _newRegFmt(BaseReg* out, uint32_t typeId, const char* fmt, ...);
+  ASMJIT_API Error _newRegFmt(BaseReg* out, TypeId typeId, const char* fmt, ...);
 
   //! Creates a new virtual register compatible with the provided reference register `ref`.
   ASMJIT_API Error _newReg(BaseReg* out, const BaseReg& ref, const char* name = nullptr);
@@ -233,9 +203,8 @@ public:
 
   //! Returns \ref VirtReg associated with the given virtual register `index`.
   //!
-  //! \note This is not the same as virtual register id. The conversion between
-  //! id and its index is implemented by \ref Operand_::virtIdToIndex() and \ref
-  //! Operand_::indexToVirtId() functions.
+  //! \note This is not the same as virtual register id. The conversion between id and its index is implemented
+  //! by \ref Operand_::virtIdToIndex() and \ref Operand_::indexToVirtId() functions.
   inline VirtReg* virtRegByIndex(uint32_t index) const noexcept { return _vRegArray[index]; }
 
   //! Returns an array of all virtual registers managed by the Compiler.
@@ -262,11 +231,11 @@ public:
   //! \name Constants
   //! \{
 
-  //! Creates a new constant of the given `scope` (see \ref ConstPool::Scope).
+  //! Creates a new constant of the given `scope` (see \ref ConstPoolScope).
   //!
-  //! This function adds a constant of the given `size` to the built-in \ref
-  //! ConstPool and stores the reference to that constant to the `out` operand.
-  ASMJIT_API Error _newConst(BaseMem* out, uint32_t scope, const void* data, size_t size);
+  //! This function adds a constant of the given `size` to the built-in \ref ConstPool and stores the reference to that
+  //! constant to the `out` operand.
+  ASMJIT_API Error _newConst(BaseMem* out, ConstPoolScope scope, const void* data, size_t size);
 
   //! \}
 
@@ -285,22 +254,14 @@ public:
     return _jumpAnnotations;
   }
 
-  ASMJIT_API Error newJumpNode(JumpNode** out, uint32_t instId, uint32_t instOptions, const Operand_& o0, JumpAnnotation* annotation);
-  ASMJIT_API Error emitAnnotatedJump(uint32_t instId, const Operand_& o0, JumpAnnotation* annotation);
+  ASMJIT_API Error newJumpNode(JumpNode** out, InstId instId, InstOptions instOptions, const Operand_& o0, JumpAnnotation* annotation);
+  ASMJIT_API Error emitAnnotatedJump(InstId instId, const Operand_& o0, JumpAnnotation* annotation);
 
-  //! Returns a new `JumpAnnotation` instance, which can be used to aggregate
-  //! possible targets of a jump where the target is not a label, for example
-  //! to implement jump tables.
+  //! Returns a new `JumpAnnotation` instance, which can be used to aggregate possible targets of a jump where the
+  //! target is not a label, for example to implement jump tables.
   ASMJIT_API JumpAnnotation* newJumpAnnotation();
 
   //! \}
-
-#ifndef ASMJIT_NO_DEPRECATED
-  ASMJIT_DEPRECATED("alloc() has no effect, it will be removed in the future")
-  inline void alloc(BaseReg&) {}
-  ASMJIT_DEPRECATED("spill() has no effect, it will be removed in the future")
-  inline void spill(BaseReg&) {}
-#endif // !ASMJIT_NO_DEPRECATED
 
   //! \name Events
   //! \{
@@ -311,18 +272,12 @@ public:
   //! \}
 };
 
-// ============================================================================
-// [asmjit::JumpAnnotation]
-// ============================================================================
-
 //! Jump annotation used to annotate jumps.
 //!
-//! \ref BaseCompiler allows to emit jumps where the target is either register
-//! or memory operand. Such jumps cannot be trivially inspected, so instead of
-//! doing heuristics AsmJit allows to annotate such jumps with possible targets.
-//! Register allocator then use the annotation to construct control-flow, which
-//! is then used by liveness analysis and other tools to prepare ground for
-//! register allocation.
+//! \ref BaseCompiler allows to emit jumps where the target is either register or memory operand. Such jumps cannot be
+//! trivially inspected, so instead of doing heuristics AsmJit allows to annotate such jumps with possible targets.
+//! Register allocator then use the annotation to construct control-flow, which is then used by liveness analysis and
+//! other tools to prepare ground for register allocation.
 class JumpAnnotation {
 public:
   ASMJIT_NONCOPYABLE(JumpAnnotation)
@@ -356,16 +311,11 @@ public:
   inline Error addLabelId(uint32_t labelId) noexcept { return _labelIds.append(&_compiler->_allocator, labelId); }
 };
 
-// ============================================================================
-// [asmjit::JumpNode]
-// ============================================================================
-
 //! Jump instruction with \ref JumpAnnotation.
 //!
-//! \note This node should be only used to represent jump where the jump target
-//! cannot be deduced by examining instruction operands. For example if the jump
-//! target is register or memory location. This pattern is often used to perform
-//! indirect jumps that use jump table, e.g. to implement `switch{}` statement.
+//! \note This node should be only used to represent jump where the jump target cannot be deduced by examining
+//! instruction operands. For example if the jump target is register or memory location. This pattern is often
+//! used to perform indirect jumps that use jump table, e.g. to implement `switch{}` statement.
 class JumpNode : public InstNode {
 public:
   ASMJIT_NONCOPYABLE(JumpNode)
@@ -375,10 +325,10 @@ public:
   //! \name Construction & Destruction
   //! \{
 
-  ASMJIT_INLINE JumpNode(BaseCompiler* cc, uint32_t instId, uint32_t options, uint32_t opCount, JumpAnnotation* annotation) noexcept
+  inline JumpNode(BaseCompiler* cc, InstId instId, InstOptions options, uint32_t opCount, JumpAnnotation* annotation) noexcept
     : InstNode(cc, instId, options, opCount, kBaseOpCapacity),
       _annotation(annotation) {
-    setType(kNodeJump);
+    setType(NodeType::kJump);
   }
 
   //! \}
@@ -396,31 +346,24 @@ public:
   //! \}
 };
 
-// ============================================================================
-// [asmjit::FuncNode]
-// ============================================================================
-
 //! Function node represents a function used by \ref BaseCompiler.
 //!
 //! A function is composed of the following:
 //!
-//!   - Function entry, \ref FuncNode acts as a label, so the entry is implicit.
-//!     To get the entry, simply use \ref FuncNode::label(), which is the same
-//!     as \ref LabelNode::label().
+//!   - Function entry, \ref FuncNode acts as a label, so the entry is implicit. To get the entry, simply use
+//!     \ref FuncNode::label(), which is the same as \ref LabelNode::label().
 //!
-//!   - Function exit, which is represented by \ref FuncNode::exitNode(). A
-//!     helper function \ref FuncNode::exitLabel() exists and returns an exit
-//!     label instead of node.
+//!   - Function exit, which is represented by \ref FuncNode::exitNode(). A helper function
+//!     \ref FuncNode::exitLabel() exists and returns an exit label instead of node.
 //!
-//!   - Function \ref FuncNode::endNode() sentinel. This node marks the end of
-//!     a function - there should be no code that belongs to the function after
-//!     this node, but the Compiler doesn't enforce that at the moment.
+//!   - Function \ref FuncNode::endNode() sentinel. This node marks the end of a function - there should be no
+//!     code that belongs to the function after this node, but the Compiler doesn't enforce that at the moment.
 //!
 //!   - Function detail, see \ref FuncNode::detail().
 //!
 //!   - Function frame, see \ref FuncNode::frame().
 //!
-//!   - Function arguments mapped to virtual registers, see \ref FuncNode::args().
+//!   - Function arguments mapped to virtual registers, see \ref FuncNode::argPacks().
 //!
 //! In a node list, the function and its body looks like the following:
 //!
@@ -439,12 +382,10 @@ public:
 //! [...]       - Anything after the function.
 //! \endcode
 //!
-//! When a function is added to the compiler by \ref BaseCompiler::addFunc() it
-//! actually inserts 3 nodes (FuncNode, ExitLabel, and FuncEnd) and sets the
-//! current cursor to be FuncNode. When \ref BaseCompiler::endFunc() is called
-//! the cursor is set to FuncEnd. This guarantees that user can use ExitLabel
-//! as a marker after additional code or data can be placed, and it's a common
-//! practice.
+//! When a function is added to the compiler by \ref BaseCompiler::addFunc() it actually inserts 3 nodes (FuncNode,
+//! ExitLabel, and FuncEnd) and sets the current cursor to be FuncNode. When \ref BaseCompiler::endFunc() is called
+//! the cursor is set to FuncEnd. This guarantees that user can use ExitLabel as a marker after additional code or
+//! data can be placed, and it's a common practice.
 class FuncNode : public LabelNode {
 public:
   ASMJIT_NONCOPYABLE(FuncNode)
@@ -480,14 +421,14 @@ public:
   //! Creates a new `FuncNode` instance.
   //!
   //! Always use `BaseCompiler::addFunc()` to create `FuncNode`.
-  ASMJIT_INLINE FuncNode(BaseBuilder* cb) noexcept
+  inline FuncNode(BaseBuilder* cb) noexcept
     : LabelNode(cb),
       _funcDetail(),
       _frame(),
       _exitNode(nullptr),
       _end(nullptr),
       _args(nullptr) {
-    setType(kNodeFunc);
+    setType(NodeType::kFunc);
   }
 
   //! \}
@@ -552,16 +493,12 @@ public:
   }
 
   //! Returns function attributes.
-  inline uint32_t attributes() const noexcept { return _frame.attributes(); }
+  inline FuncAttributes attributes() const noexcept { return _frame.attributes(); }
   //! Adds `attrs` to the function attributes.
-  inline void addAttributes(uint32_t attrs) noexcept { _frame.addAttributes(attrs); }
+  inline void addAttributes(FuncAttributes attrs) noexcept { _frame.addAttributes(attrs); }
 
   //! \}
 };
-
-// ============================================================================
-// [asmjit::FuncRetNode]
-// ============================================================================
 
 //! Function return, used by \ref BaseCompiler.
 class FuncRetNode : public InstNode {
@@ -572,27 +509,21 @@ public:
   //! \{
 
   //! Creates a new `FuncRetNode` instance.
-  inline FuncRetNode(BaseBuilder* cb) noexcept : InstNode(cb, BaseInst::kIdAbstract, 0, 0) {
-    _any._nodeType = kNodeFuncRet;
+  inline FuncRetNode(BaseBuilder* cb) noexcept : InstNode(cb, BaseInst::kIdAbstract, InstOptions::kNone, 0) {
+    _any._nodeType = NodeType::kFuncRet;
   }
 
   //! \}
 };
-
-// ============================================================================
-// [asmjit::InvokeNode]
-// ============================================================================
 
 //! Function invocation, used by \ref BaseCompiler.
 class InvokeNode : public InstNode {
 public:
   ASMJIT_NONCOPYABLE(InvokeNode)
 
-  //! Operand pack provides multiple operands that can be associated with a
-  //! single return value of function argument. Sometims this is necessary to
-  //! express an argument or return value that requires multiple registers, for
-  //! example 64-bit value in 32-bit mode or passing / returning homogenous data
-  //! structures.
+  //! Operand pack provides multiple operands that can be associated with a single return value of function
+  //! argument. Sometims this is necessary to express an argument or return value that requires multiple
+  //! registers, for example 64-bit value in 32-bit mode or passing / returning homogenous data structures.
   struct OperandPack {
     //! Operands.
     Operand_ _data[Globals::kMaxValuePack];
@@ -627,14 +558,14 @@ public:
   //! \{
 
   //! Creates a new `InvokeNode` instance.
-  inline InvokeNode(BaseBuilder* cb, uint32_t instId, uint32_t options) noexcept
+  inline InvokeNode(BaseBuilder* cb, InstId instId, InstOptions options) noexcept
     : InstNode(cb, instId, options, kBaseOpCapacity),
       _funcDetail(),
       _args(nullptr) {
-    setType(kNodeInvoke);
+    setType(NodeType::kInvoke);
     _resetOps();
     _rets.reset();
-    addFlags(kFlagIsRemovable);
+    addFlags(NodeFlags::kIsRemovable);
   }
 
   //! \}
@@ -717,10 +648,6 @@ public:
 
   //! \}
 };
-
-// ============================================================================
-// [asmjit::FuncPass]
-// ============================================================================
 
 //! Function pass extends \ref Pass with \ref FuncPass::runOnFunction().
 class ASMJIT_VIRTAPI FuncPass : public Pass {
