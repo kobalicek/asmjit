@@ -455,6 +455,8 @@ class GenUtils {
 class X86TableGen extends core.TableGen {
   constructor() {
     super("X86");
+
+    this.emitMissingString = "";
   }
 
   // --------------------------------------------------------------------------
@@ -595,6 +597,7 @@ class X86TableGen extends core.TableGen {
       }
     }, this);
     console.log(out);
+    console.log(this.emitMissingString);
   }
 
   newInstFromGroup(dbInsts) {
@@ -619,24 +622,83 @@ class X86TableGen extends core.TableGen {
       return s === "VEX" || s === "EVEX" || s === "XOP";
     }
 
+    function formatEmit(dbi) {
+      const results = [];
+      const nameUp = dbi.name[0].toUpperCase() + dbi.name.substr(1);
+
+      for (let choice = 0; choice < 2; choice++) {
+        let s = `ASMJIT_INST_${dbi.operands.length}x(${dbi.name}, ${nameUp}`;
+        for (let j = 0; j < dbi.operands.length; j++) {
+          s += ", ";
+          const op = dbi.operands[j];
+          var reg = op.reg;
+          var mem = op.mem;
+
+          if (op.isReg() && op.isMem()) {
+            if (choice == 0) mem = null;
+            if (choice == 1) reg = null;
+          }
+
+          if (reg) {
+            if (reg === "xmm" || reg === "ymm" || reg === "zmm")
+              s += "Vec";
+            else if (reg === "k")
+              s += "KReg";
+            else if (reg === "r32" || reg === "r64" || reg === "r16" || reg === "r8")
+              s += "Gp";
+            else
+              s += reg;
+          }
+          else if (mem) {
+            s += "Mem";
+          }
+          else if (op.isImm()) {
+            s += "Imm";
+          }
+          else {
+            s += "Unknown";
+          }
+        }
+        s += `)`;
+        results.push(s);
+      }
+
+      return results;
+    }
+
     var dbi = dbInsts[0];
 
-    var id       = this.insts.length;
-    var name     = dbi.name;
-    var enum_    = name[0].toUpperCase() + name.substr(1);
+    var id = this.insts.length;
+    var name = dbi.name;
+    var enum_ = name[0].toUpperCase() + name.substr(1);
 
-    var opcode   = dbi.opcodeHex;
-    var modR     = dbi.modR;
-    var mm       = dbi.mm;
-    var pp       = dbi.pp;
+    var opcode = dbi.opcodeHex;
+    var modR = dbi.modR;
+    var mm = dbi.mm;
+    var pp = dbi.pp;
     var encoding = dbi.encoding;
-    var isVec    = isVecPrefix(dbi.prefix);
+    var isVec = isVecPrefix(dbi.prefix);
+    var evexCount = 0;
 
-    var access   = GetAccess(dbi);
+    var access = GetAccess(dbi);
 
-    var vexL     = undefined;
-    var vexW     = undefined;
-    var evexW    = undefined;
+    var vexL = undefined;
+    var vexW = undefined;
+    var evexW = undefined;
+    var cdshl = "_";
+    var tupleType = "_";
+
+    const tupleTypeToCDSHL = {
+      "FVM": "4",
+      "FV": "4",
+      "HVM": "3",
+      "HV": "3",
+      "QVM": "2",
+      "QV": "2",
+      "T1S": "?"
+    }
+
+    const emitMap = {};
 
     for (var i = 0; i < dbInsts.length; i++) {
       dbi = dbInsts[i];
@@ -656,35 +718,54 @@ class X86TableGen extends core.TableGen {
       }
 
       if (dbi.prefix === "EVEX") {
+        evexCount++;
         var newEvexW = String(dbi.w === "W0" ? 0 : dbi.w === "W1" ? 1 : "_");
         if (evexW !== undefined && evexW !== newEvexW)
           evexW = "x";
         else
           evexW = newEvexW;
+
+        if (dbi.tupleType) {
+          if (tupleType !== "_" && tupleType !== dbi.tupleType) {
+            console.log(`${dbi.name}: WARNING: TupleType ${tupleType} != ${dbi.tupleType}`);
+          }
+
+          tupleType = dbi.tupleType;
+        }
       }
 
-      if (opcode   !== dbi.opcodeHex ) { console.log(`ISSUE: Opcode ${opcode} != ${dbi.opcodeHex}`); return null; }
-      if (modR     !== dbi.modR      ) { console.log(`ISSUE: ModR ${modR} != ${dbi.modR}`); return null; }
-      if (mm       !== dbi.mm        ) { console.log(`ISSUE: MM ${mm} != ${dbi.mm}`); return null; }
-      if (pp       !== dbi.pp        ) { console.log(`ISSUE: PP ${pp} != ${dbi.pp}`); return null; }
-      if (encoding !== dbi.encoding  ) { console.log(`ISSUE: Enc ${encoding} != ${dbi.encoding}`); return null; }
-      if (access   !== GetAccess(dbi)) { console.log(`ISSUE: Access ${access} != ${GetAccess(dbi)}`); return null; }
-      if (isVec    != isVecPrefix(dbi.prefix)) { console.log(`ISSUE: Vex/Non-Vex mismatch`); return null; }
+      if (opcode   !== dbi.opcodeHex ) { console.log(`${dbi.name}: ISSUE: Opcode ${opcode} != ${dbi.opcodeHex}`); return null; }
+      if (modR     !== dbi.modR      ) { console.log(`${dbi.name}: ISSUE: ModR ${modR} != ${dbi.modR}`); return null; }
+      if (mm       !== dbi.mm        ) { console.log(`${dbi.name}: ISSUE: MM ${mm} != ${dbi.mm}`); return null; }
+      if (pp       !== dbi.pp        ) { console.log(`${dbi.name}: ISSUE: PP ${pp} != ${dbi.pp}`); return null; }
+      if (encoding !== dbi.encoding  ) { console.log(`${dbi.name}: ISSUE: Enc ${encoding} != ${dbi.encoding}`); return null; }
+      if (access   !== GetAccess(dbi)) { console.log(`${dbi.name}: ISSUE: Access ${access} != ${GetAccess(dbi)}`); return null; }
+      if (isVec    != isVecPrefix(dbi.prefix)) { console.log(`${dbi.name}: ISSUE: Vex/Non-Vex mismatch`); return null; }
+
+      formatEmit(dbi).forEach((emit) => {
+        if (!emitMap[emit]) {
+          emitMap[emit] = true;
+          this.emitMissingString += emit + "\n";
+        }
+      });
     }
+
+    if (tupleType !== "_")
+      cdshl = tupleTypeToCDSHL[tupleType] || "?";
 
     var ppmm = pp.padEnd(2).replace(/ /g, "0") +
                mm.padEnd(4).replace(/ /g, "0") ;
 
     var composed = composeOpCode({
-      type  : isVec ? "V" : "O",
+      type  : evexCount == dbInsts.length ? "E" : isVec ? "V" : "O",
       prefix: ppmm,
       opcode: opcode,
       o     : modR === "r" ? "_" : (modR ? modR : "_"),
       l     : vexL !== undefined ? vexL : "_",
       w     : vexW !== undefined ? vexW : "_",
       ew    : evexW !== undefined ? evexW : "_",
-      en    : "_",
-      tt    : dbi.modRM ? dbi.modRM + "  " : "_  "
+      en    : cdshl,
+      tt    : dbi.modRM ? dbi.modRM + "  " : tupleType.padEnd(3)
     });
 
     return {
@@ -805,39 +886,103 @@ class AltOpcodeTable extends core.Task {
     const mainOpcodeTable = new IndexedArray();
     const altOpcodeTable = new IndexedArray();
 
-    mainOpcodeTable.addIndexed("O(000000,00,0,0,0,0,0,_  )");
+    const cdttSimplification = {
+      "0"    : "None",
+      "_"    : "None",
+      "FV"   : "ByLL",
+      "HV"   : "ByLL",
+      "QV"   : "ByLL",
+      "FVM"  : "ByLL",
+      "T1S"  : "None",
+      "T1F"  : "None",
+      "T1_4X": "None",
+      "T2"   : "None",
+      "T4"   : "None",
+      "T8"   : "None",
+      "HVM"  : "ByLL",
+      "QVM"  : "ByLL",
+      "OVM"  : "ByLL",
+      "128"  : "None",
+      "T4X"  : "None"
+    }
 
-    function indexOpcode(opcode) {
+    const noOp = "O(000000,00,0,0,0,0,0,0   )";
+
+    mainOpcodeTable.addIndexed(noOp);
+
+    function splitOpcodeToComponents(opcode) {
+      const i = opcode.indexOf("(");
+      const prefix = opcode.substr(0, i);
+      return [prefix].concat(opcode.substring(i + 1, opcode.length - 1).split(","));
+    }
+
+    function normalizeOpcodeComponents(components) {
+      for (let i = 1; i < components.length; i++) {
+        components[i] = components[i].trim();
+        // These all are zeros that only have some contextual meaning in the table, but the assembler doesn't care.
+        if (components[i] === "_" || components[i] === "I" || components[i] === "x")
+          components[i] = "0";
+      }
+
+      // Simplify CDTT (compressed displacement TupleType).
+      if (components.length >= 9) {
+        if (components[0] === "V" || components[0] === "E") {
+          const cdtt = components[8];
+          if (cdttSimplification[cdtt] !== undefined)
+            components[8] = cdttSimplification[cdtt];
+        }
+      }
+      return components;
+    }
+
+    function joinOpcodeComponents(components) {
+      const prefix = components[0];
+      const values = components.slice(1);
+      if (values.length >= 8)
+        values[7] = values[7].padEnd(4);
+      return prefix + "(" + values.join(",") + ")";
+    }
+
+    function indexMainOpcode(opcode) {
       if (opcode === "0")
         return ["00", 0];
 
-      // O_FPU(__,__OP,_)
-      if (opcode.startsWith("O_FPU(")) {
-        var value = opcode.substring(11, 13);
-        var remaining = opcode.substring(0, 11) + "00" + opcode.substring(13);
+      var opcodeByte = "";
+      const components = normalizeOpcodeComponents(splitOpcodeToComponents(opcode));
 
-        return [value, mainOpcodeTable.addIndexed(remaining.padEnd(26))];
+      if (components[0] === "O_FPU") {
+        // Reset opcode byte, this is stored in the instruction data itself.
+        opcodeByte = components[2].substr(2, 2);
+        components[2] = components[2].substr(0, 2) + "00";
+      }
+      else if (components[0] === "O" || components[0] === "V" || components[0] === "E") {
+        // Reset opcode byte, this is stored in the instruction data itself.
+        opcodeByte = components[2];
+        components[2] = "00";
+      }
+      else {
+        FAIL(`Failed to process opcode '${opcode}'`);
       }
 
-      // X(______,OP,_,_,_,_,_,_  )
-      if (opcode.startsWith("O(") || opcode.startsWith("V(") || opcode.startsWith("E(")) {
-        var value = opcode.substring(9, 11);
-        var remaining = opcode.substring(0, 9) + "00" + opcode.substring(11);
+      const newOpcode = joinOpcodeComponents(components);
+      return [opcodeByte, mainOpcodeTable.addIndexed(newOpcode.padEnd(27))];
+    }
 
-        remaining = remaining.replace(/,[_xI],/g, ",0,");
-        remaining = remaining.replace(/,[_xI],/g, ",0,");
-        return [value, mainOpcodeTable.addIndexed(remaining.padEnd(26))];
-      }
-
-      FAIL(`Failed to process opcode '${opcode}'`);
+    function indexAltOpcode(opcode) {
+      if (opcode === "0")
+        opcode = noOp;
+      else
+        opcode = joinOpcodeComponents(normalizeOpcodeComponents(splitOpcodeToComponents(opcode)));
+      return altOpcodeTable.addIndexed(opcode.padEnd(27));
     }
 
     insts.map((inst) => {
-      const [value, index] = indexOpcode(inst.opcode0);
+      const [value, index] = indexMainOpcode(inst.opcode0);
       inst.mainOpcodeValue = value;
       inst.mainOpcodeIndex = index;
-      inst.altOpcodeIndex = altOpcodeTable.addIndexed(inst.opcode1.padEnd(26));
+      inst.altOpcodeIndex = indexAltOpcode(inst.opcode1);
     });
+
     // console.log(mainOpcodeTable.length);
     // console.log(StringUtils.format(mainOpcodeTable, kIndent, true));
 

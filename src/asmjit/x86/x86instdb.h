@@ -168,8 +168,9 @@ enum Avx512Flags : uint32_t {
   kAvx512FlagZ             = 0x00000002u, //!< Supports zeroing {z}, must be used together with `kAvx512k`.
   kAvx512FlagER            = 0x00000004u, //!< Supports 'embedded-rounding' {er} with implicit {sae},
   kAvx512FlagSAE           = 0x00000008u, //!< Supports 'suppress-all-exceptions' {sae}.
-  kAvx512FlagB32           = 0x00000010u, //!< Supports 32-bit broadcast 'b32'.
-  kAvx512FlagB64           = 0x00000020u, //!< Supports 64-bit broadcast 'b64'.
+  kAvx512FlagB16           = 0x00000010u, //!< Supports 16-bit broadcast 'b16'.
+  kAvx512FlagB32           = 0x00000020u, //!< Supports 32-bit broadcast 'b32'.
+  kAvx512FlagB64           = 0x00000040u, //!< Supports 64-bit broadcast 'b64'.
   kAvx512FlagT4X           = 0x00000080u  //!< Operates on a vector of consecutive registers (AVX512_4FMAPS and AVX512_4VNNIW).
 };
 
@@ -300,11 +301,19 @@ struct CommonInfo {
   //! Tests whether the instruction supports AVX512 suppress-all-exceptions {sae}.
   inline bool hasAvx512SAE() const noexcept { return hasAvx512Flag(kAvx512FlagSAE); }
   //! Tests whether the instruction supports AVX512 broadcast (either 32-bit or 64-bit).
-  inline bool hasAvx512B() const noexcept { return hasAvx512Flag(kAvx512FlagB32 | kAvx512FlagB64); }
+  inline bool hasAvx512B() const noexcept { return hasAvx512Flag(kAvx512FlagB16 | kAvx512FlagB32 | kAvx512FlagB64); }
+  //! Tests whether the instruction supports AVX512 broadcast (16-bit).
+  inline bool hasAvx512B16() const noexcept { return hasAvx512Flag(kAvx512FlagB16); }
   //! Tests whether the instruction supports AVX512 broadcast (32-bit).
   inline bool hasAvx512B32() const noexcept { return hasAvx512Flag(kAvx512FlagB32); }
   //! Tests whether the instruction supports AVX512 broadcast (64-bit).
   inline bool hasAvx512B64() const noexcept { return hasAvx512Flag(kAvx512FlagB64); }
+
+  // Returns the size of the broadcast - either 2, 4, or 8, or 0 if broadcast is not supported.
+  inline uint32_t broadcastSize() const noexcept {
+    constexpr uint32_t kShift = Support::ConstCTZ<kAvx512FlagB16>::value;
+    return (uint32_t(_avx512Flags) & uint32_t(kAvx512FlagB16 | kAvx512FlagB32 | kAvx512FlagB64)) >> (kShift - 1);
+  }
 
   inline uint32_t signatureIndex() const noexcept { return _iSignatureIndex; }
   inline uint32_t signatureCount() const noexcept { return _iSignatureCount; }
@@ -404,7 +413,9 @@ struct InstInfo {
   //! Tests whether the instruction supports AVX512 suppress-all-exceptions {sae}.
   inline bool hasAvx512SAE() const noexcept { return hasAvx512Flag(kAvx512FlagSAE); }
   //! Tests whether the instruction supports AVX512 broadcast (either 32-bit or 64-bit).
-  inline bool hasAvx512B() const noexcept { return hasAvx512Flag(kAvx512FlagB32 | kAvx512FlagB64); }
+  inline bool hasAvx512B() const noexcept { return hasAvx512Flag(kAvx512FlagB16 | kAvx512FlagB32 | kAvx512FlagB64); }
+  //! Tests whether the instruction supports AVX512 broadcast (16-bit).
+  inline bool hasAvx512B16() const noexcept { return hasAvx512Flag(kAvx512FlagB16); }
   //! Tests whether the instruction supports AVX512 broadcast (32-bit).
   inline bool hasAvx512B32() const noexcept { return hasAvx512Flag(kAvx512FlagB32); }
   //! Tests whether the instruction supports AVX512 broadcast (64-bit).

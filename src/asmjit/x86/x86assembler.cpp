@@ -55,13 +55,13 @@ enum X86Byte : uint32_t {
 
   //! 4-byte EVEX prefix:
   //!   - `[0]` - `0x62`.
-  //!   - `[1]` - Payload0 or `P[ 7: 0]` - `[R  X  B  R' 0  0  m  m]`.
+  //!   - `[1]` - Payload0 or `P[ 7: 0]` - `[R  X  B  R' 0  m  m  m]`.
   //!   - `[2]` - Payload1 or `P[15: 8]` - `[W  v  v  v  v  1  p  p]`.
   //!   - `[3]` - Payload2 or `P[23:16]` - `[z  L' L  b  V' a  a  a]`.
   //!
   //! Payload:
-  //!   - `P[ 1: 0]` - OPCODE: EVEX.mmmmm, only lowest 2 bits [1:0] used.
-  //!   - `P[ 3: 2]` - ______: Must be 0.
+  //!   - `P[ 2: 0]` - OPCODE: EVEX.mmmmm, only lowest 3 bits [2:0] used.
+  //!   - `P[    3]` - ______: Must be 0.
   //!   - `P[    4]` - REG-ID: EVEX.R' - 5th bit of 'RRRRR'.
   //!   - `P[    5]` - REG-ID: EVEX.B  - 4th bit of 'BBBBB'.
   //!   - `P[    6]` - REG-ID: EVEX.X  - 5th bit of 'BBBBB' or 4th bit of 'XXXX' (with SIB).
@@ -329,6 +329,11 @@ static ASMJIT_FORCE_INLINE bool x86IsRexInvalid(uint32_t rex) noexcept {
   //   REX == 0x80      -> OKAY (X86_32 mode, rex prefix not used).
   //   REX == 0x81-0xCF -> BAD  (X86_32 mode, rex prefix used).
   return rex > kX86ByteInvalidRex;
+}
+
+static ASMJIT_FORCE_INLINE uint32_t x86GetForceEvex3MaskInLastBit(InstOptions options) noexcept {
+  constexpr uint32_t kVex3Bit = Support::ConstCTZ<uint32_t(InstOptions::kX86_Vex3)>::value;
+  return uint32_t(options & InstOptions::kX86_Vex3) << (31 - kVex3Bit);
 }
 
 template<typename T>
@@ -2895,7 +2900,7 @@ CaseExtRm:
     // ---------------------
 
     case InstDB::kEncodingVexOp:
-      goto EmitVexEvexOp;
+      goto EmitVexOp;
 
     case InstDB::kEncodingVexOpMod:
       rbReg = 0;
@@ -4449,30 +4454,29 @@ EmitFpuOp:
   writer.emit8(opcode.v);
   goto EmitDone;
 
-  // Emit - VEX|EVEX
-  // ---------------
+  // Emit - VEX Opcode
+  // -----------------
 
-EmitVexEvexOp:
+EmitVexOp:
   {
     // These don't use immediate.
     ASMJIT_ASSERT(immSize == 0);
 
-    // Only 'vzeroall' and 'vzeroupper' instructions use this encoding, they
-    // don't define 'W' to be '1' so we can just check the 'mmmmm' field. Both
-    // functions can encode by using VEX2 prefix so VEX3 is basically only used
+    // Only 'vzeroall' and 'vzeroupper' instructions use this encoding, they don't define 'W' to be '1' so we can
+    // just check the 'mmmmm' field. Both functions can encode by using VEX2 prefix so VEX3 is basically only used
     // when specified as instruction option.
     ASMJIT_ASSERT((opcode & Opcode::kW) == 0);
 
     uint32_t x = (uint32_t(opcode  & Opcode::kMM_Mask      ) >> (Opcode::kMM_Shift     )) |
                  (uint32_t(opcode  & Opcode::kLL_Mask      ) >> (Opcode::kLL_Shift - 10)) |
-                 (uint32_t(opcode  & Opcode::kPP_VEXMask   ) >> (Opcode::kPP_Shift -  8)) |
-                 (uint32_t(options & InstOptions::kX86_Vex3) >> (Opcode::kMM_Shift     )) ;
-    if (x & 0x04u) {
-      x  = (x & (0x4 ^ 0xFFFF)) << 8;                       // [00000000|00000Lpp|0000m0mm|00000000].
-      x ^= (kX86ByteVex3) |                                 // [........|00000Lpp|0000m0mm|__VEX3__].
-           (0x07u  << 13) |                                 // [........|00000Lpp|1110m0mm|__VEX3__].
-           (0x0Fu  << 19) |                                 // [........|01111Lpp|1110m0mm|__VEX3__].
-           (opcode << 24) ;                                 // [_OPCODE_|01111Lpp|1110m0mm|__VEX3__].
+                 (uint32_t(opcode  & Opcode::kPP_VEXMask   ) >> (Opcode::kPP_Shift -  8)) ;
+
+    if (Support::test(options, InstOptions::kX86_Vex3)) {
+      x  = (x & 0xFFFF) << 8;                               // [00000000|00000Lpp|000mmmmm|00000000].
+      x ^= (kX86ByteVex3) |                                 // [........|00000Lpp|000mmmmm|__VEX3__].
+           (0x07u  << 13) |                                 // [........|00000Lpp|111mmmmm|__VEX3__].
+           (0x0Fu  << 19) |                                 // [........|01111Lpp|111mmmmm|__VEX3__].
+           (opcode << 24) ;                                 // [_OPCODE_|01111Lpp|111mmmmm|__VEX3__].
 
       writer.emit32uLE(x);
       goto EmitDone;
@@ -4494,7 +4498,7 @@ EmitVexEvexR:
     // Construct `x` - a complete EVEX|VEX prefix.
     uint32_t x = ((opReg << 4) & 0xF980u) |                 // [........|........|Vvvvv..R|R.......].
                  ((rbReg << 2) & 0x0060u) |                 // [........|........|........|.BB.....].
-                 (opcode.extractLLMM(options)) |            // [........|.LL.....|Vvvvv..R|RBBmmmmm].
+                 (opcode.extractLLMMMMM(options)) |         // [........|.LL.....|Vvvvv..R|RBBmmmmm].
                  (_extraReg.id() << 16);                    // [........|.LL..aaa|Vvvvv..R|RBBmmmmm].
     opReg &= 0x7;
 
@@ -4534,20 +4538,22 @@ EmitVexEvexR:
           if (ASMJIT_UNLIKELY(!commonInfo->hasAvx512SAE()))
             goto InvalidEROrSAE;
 
-          x |= kBcstMask;                                   // [........|.LLb.aaa|Vvvvv..R|RBBmmmmm].
+          x &=~kLLMask11;                                   // [........|.00..aaa|Vvvvv..R|RBBmmmmm].
+          x |= kBcstMask;                                   // [........|.00b.aaa|Vvvvv..R|RBBmmmmm].
         }
       }
     }
 
-    // If these bits are used then EVEX prefix is required.
+    // These bits would force EVEX prefix.
+    constexpr uint32_t kEvexForce = 0x00000010u;            // [........|........|........|...x....].
     constexpr uint32_t kEvexBits = 0x00D78150u;             // [........|xx.x.xxx|x......x|.x.x....].
 
     // Force EVEX prefix even in case the instruction has VEX encoding, because EVEX encoding is preferred. At the
-    // moment this is only required for AVX_VNNI instructions, which were added after AVX512_VNNI instructions. If
-    // such instruction doesn't specify prefix, EVEX (AVX512_VNNI) would be used by default,
+    // moment this is only required by AVX_VNNI instructions, which were added after AVX512_VNNI instructions. If
+    // such instruction doesn't specify prefix, EVEX (AVX512_VNNI) is selected by default.
     if (commonInfo->preferEvex()) {
       if ((x & kEvexBits) == 0 && !Support::test(options, InstOptions::kX86_Vex | InstOptions::kX86_Vex3)) {
-        x |= (Opcode::kMM_ForceEvex) >> Opcode::kMM_Shift;
+        x |= kEvexForce;
       }
     }
 
@@ -4555,12 +4561,12 @@ EmitVexEvexR:
     if (x & kEvexBits) {
       uint32_t y = ((x << 4) & 0x00080000u) |               // [........|...bV...|........|........].
                    ((x >> 4) & 0x00000010u) ;               // [........|...bV...|........|...R....].
-      x  = (x & 0x00FF78E3u) | y;                           // [........|zLLbVaaa|0vvvv000|RBBR00mm].
-      x  = x << 8;                                          // [zLLbVaaa|0vvvv000|RBBR00mm|00000000].
-      x |= (opcode >> kVSHR_W    ) & 0x00800000u;           // [zLLbVaaa|Wvvvv000|RBBR00mm|00000000].
-      x |= (opcode >> kVSHR_PP_EW) & 0x00830000u;           // [zLLbVaaa|Wvvvv0pp|RBBR00mm|00000000] (added PP and EVEX.W).
+      x  = (x & 0x00FF78EFu) | y;                           // [........|zLLbVaaa|0vvvv000|RBBRmmmm].
+      x  = x << 8;                                          // [zLLbVaaa|0vvvv000|RBBRmmmm|00000000].
+      x |= (opcode >> kVSHR_W    ) & 0x00800000u;           // [zLLbVaaa|Wvvvv000|RBBRmmmm|00000000].
+      x |= (opcode >> kVSHR_PP_EW) & 0x00830000u;           // [zLLbVaaa|Wvvvv0pp|RBBRmmmm|00000000] (added PP and EVEX.W).
                                                             //      _     ____    ____
-      x ^= 0x087CF000u | kX86ByteEvex;                      // [zLLbVaaa|Wvvvv1pp|RBBR00mm|01100010].
+      x ^= 0x087CF000u | kX86ByteEvex;                      // [zLLbVaaa|Wvvvv1pp|RBBRmmmm|01100010].
 
       writer.emit32uLE(x);
       writer.emit8(opcode.v);
@@ -4571,17 +4577,18 @@ EmitVexEvexR:
       goto EmitDone;
     }
 
-    // Not EVEX, prepare `x` for VEX2 or VEX3:             x = [........|00L00000|0vvvv000|R0B0mmmm].
-    x |= ((opcode >> (kVSHR_W  + 8)) & 0x8000u) |           // [00000000|00L00000|Wvvvv000|R0B0mmmm].
-         ((opcode >> (kVSHR_PP + 8)) & 0x0300u) |           // [00000000|00L00000|0vvvv0pp|R0B0mmmm].
-         ((x      >> 11            ) & 0x0400u) ;           // [00000000|00L00000|WvvvvLpp|R0B0mmmm].
+    // Not EVEX, prepare `x` for VEX2 or VEX3:             x = [........|00L00000|0vvvv000|R0Bmmmmm].
+    x |= ((opcode >> (kVSHR_W  + 8)) & 0x8000u) |           // [00000000|00L00000|Wvvvv000|R0Bmmmmm].
+         ((opcode >> (kVSHR_PP + 8)) & 0x0300u) |           // [00000000|00L00000|0vvvv0pp|R0Bmmmmm].
+         ((x      >> 11            ) & 0x0400u) ;           // [00000000|00L00000|WvvvvLpp|R0Bmmmmm].
+    x |= x86GetForceEvex3MaskInLastBit(options);            // [x0000000|00L00000|WvvvvLpp|R0Bmmmmm].
 
-    // Check if VEX3 is required / forced:                     [........|........|x.......|..x..x..].
-    if (x & 0x0008024u) {
+    // Check if VEX3 is required / forced:                     [x.......|........|x.......|..xxxxx.].
+    if (x & 0x8000803Eu) {
       uint32_t xorMsk = x86VEXPrefix[x & 0xF] | (opcode << 24);
 
-      // Clear 'FORCE-VEX3' bit and all high bits.
-      x  = (x & (0x4 ^ 0xFFFF)) << 8;                       // [00000000|WvvvvLpp|R0B0m0mm|00000000].
+      // Clear all high bits.
+      x  = (x & 0xFFFF) << 8;                               // [00000000|WvvvvLpp|R0Bmmmmm|00000000].
                                                             //            ____    _ _
       x ^= xorMsk;                                          // [_OPCODE_|WvvvvLpp|R1Bmmmmm|VEX3|XOP].
       writer.emit32uLE(x);
@@ -4627,16 +4634,16 @@ EmitVexEvexM:
     uint32_t broadcastBit = uint32_t(rmRel->as<Mem>().hasBroadcast());
 
     // Construct `x` - a complete EVEX|VEX prefix.
-    uint32_t x = ((opReg <<  4) & 0x0000F980u) |            // [........|........|Vvvvv..R|R.......].
-                 ((rxReg <<  3) & 0x00000040u) |            // [........|........|........|.X......].
-                 ((rxReg << 15) & 0x00080000u) |            // [........|....X...|........|........].
-                 ((rbReg <<  2) & 0x00000020u) |            // [........|........|........|..B.....].
-                 opcode.extractLLMM(options)   |            // [........|.LL.X...|Vvvvv..R|RXBmmmmm].
-                 (_extraReg.id()    << 16)     |            // [........|.LL.Xaaa|Vvvvv..R|RXBmmmmm].
-                 (broadcastBit      << 20)     ;            // [........|.LLbXaaa|Vvvvv..R|RXBmmmmm].
+    uint32_t x = ((opReg <<  4) & 0x0000F980u)  |           // [........|........|Vvvvv..R|R.......].
+                 ((rxReg <<  3) & 0x00000040u)  |           // [........|........|........|.X......].
+                 ((rxReg << 15) & 0x00080000u)  |           // [........|....X...|........|........].
+                 ((rbReg <<  2) & 0x00000020u)  |           // [........|........|........|..B.....].
+                 opcode.extractLLMMMMM(options) |           // [........|.LL.X...|Vvvvv..R|RXBmmmmm].
+                 (_extraReg.id()    << 16)      |           // [........|.LL.Xaaa|Vvvvv..R|RXBmmmmm].
+                 (broadcastBit      << 20)      ;           // [........|.LLbXaaa|Vvvvv..R|RXBmmmmm].
     opReg &= 0x07u;
 
-    // Mark invalid VEX (force EVEX) case:               // [@.......|.LLbXaaa|Vvvvv..R|RXBmmmmm].
+    // Mark invalid VEX (force EVEX) case:                  // [@.......|.LLbXaaa|Vvvvv..R|RXBmmmmm].
     x |= (~commonInfo->flags() & InstDB::kFlagVex) << (31 - Support::ConstCTZ<InstDB::kFlagVex>::value);
 
     // Handle AVX512 options by a single branch.
@@ -4652,6 +4659,7 @@ EmitVexEvexM:
     }
 
     // If these bits are used then EVEX prefix is required.
+    constexpr uint32_t kEvexForce = 0x00000010u;            // [........|........|........|...x....].
     constexpr uint32_t kEvexBits = 0x80DF8110u;             // [@.......|xx.xxxxx|x......x|...x....].
 
     // Force EVEX prefix even in case the instruction has VEX encoding, because EVEX encoding is preferred. At the
@@ -4659,7 +4667,7 @@ EmitVexEvexM:
     // such instruction doesn't specify prefix, EVEX (AVX512_VNNI) would be used by default,
     if (commonInfo->preferEvex()) {
       if ((x & kEvexBits) == 0 && !Support::test(options, InstOptions::kX86_Vex | InstOptions::kX86_Vex3)) {
-        x |= (Opcode::kMM_ForceEvex) >> Opcode::kMM_Shift;
+        x |= kEvexForce;
       }
     }
 
@@ -4667,21 +4675,42 @@ EmitVexEvexM:
     if (x & kEvexBits) {
       uint32_t y = ((x << 4) & 0x00080000u) |               // [@.......|....V...|........|........].
                    ((x >> 4) & 0x00000010u) ;               // [@.......|....V...|........|...R....].
-      x  = (x & 0x00FF78E3u) | y;                           // [........|zLLbVaaa|0vvvv000|RXBR00mm].
-      x  = x << 8;                                          // [zLLbVaaa|0vvvv000|RBBR00mm|00000000].
-      x |= (opcode >> kVSHR_W    ) & 0x00800000u;           // [zLLbVaaa|Wvvvv000|RBBR00mm|00000000].
-      x |= (opcode >> kVSHR_PP_EW) & 0x00830000u;           // [zLLbVaaa|Wvvvv0pp|RBBR00mm|00000000] (added PP and EVEX.W).
+      x  = (x & 0x00FF78EFu) | y;                           // [........|zLLbVaaa|0vvvv000|RXBRmmmm].
+      x  = x << 8;                                          // [zLLbVaaa|0vvvv000|RBBRmmmm|00000000].
+      x |= (opcode >> kVSHR_W    ) & 0x00800000u;           // [zLLbVaaa|Wvvvv000|RBBRmmmm|00000000].
+      x |= (opcode >> kVSHR_PP_EW) & 0x00830000u;           // [zLLbVaaa|Wvvvv0pp|RBBRmmmm|00000000] (added PP and EVEX.W).
                                                             //      _     ____    ____
-      x ^= 0x087CF000u | kX86ByteEvex;                      // [zLLbVaaa|Wvvvv1pp|RBBR00mm|01100010].
-
-      writer.emit32uLE(x);
-      writer.emit8(opcode.v);
+      x ^= 0x087CF000u | kX86ByteEvex;                      // [zLLbVaaa|Wvvvv1pp|RBBRmmmm|01100010].
 
       if (x & 0x10000000u) {
-        // Broadcast, change the compressed displacement scale to either x4 (SHL 2) or x8 (SHL 3)
-        // depending on instruction's W. If 'W' is 1 'SHL' must be 3, otherwise it must be 2.
+        // Broadcast support.
+        //
+        // 1. Verify our LL field is correct as broadcast changes the "size" of the source operand. For example if
+        //    a broadcasted operand is qword_ptr[X] {1to8} the source size becomes 64 and not 8 as the memory operand
+        //    would report.
+        //
+        // 2. Change the compressed displacement scale to either x2 (SHL1), x4 (SHL 2), or x8 (SHL 3) depending on
+        //    the broadcast unit/element size.
+        uint32_t broadcastUnitSize = commonInfo->broadcastSize();
+        uint32_t broadcastVectorSize = broadcastUnitSize << uint32_t(rmRel->as<Mem>().getBroadcast());
+
+        if (ASMJIT_UNLIKELY(broadcastUnitSize == 0))
+          goto InvalidBroadcast;
+
+        // LL was already shifted 8 bits right.
+        constexpr uint32_t kLLShift = 21 + 8;
+
+        uint32_t currentLL = x & (0x3u << kLLShift);
+        uint32_t broadcastLL = (Support::max<uint32_t>(Support::ctz(broadcastVectorSize), 4) - 4) << kLLShift;
+
+        if (broadcastLL > (2u << kLLShift))
+          goto InvalidBroadcast;
+
+        uint32_t newLL = Support::max(currentLL, broadcastLL);
+        x = (x & ~(uint32_t(0x3) << kLLShift)) | newLL;
+
         opcode &=~uint32_t(Opcode::kCDSHL_Mask);
-        opcode |= ((x & 0x00800000u) ? 3u : 2u) << Opcode::kCDSHL_Shift;
+        opcode |= Support::ctz(broadcastUnitSize) << Opcode::kCDSHL_Shift;
       }
       else {
         // Add the compressed displacement 'SHF' to the opcode based on 'TTWLL'.
@@ -4691,22 +4720,26 @@ EmitVexEvexM:
                          ((x >> 29) & 0x3);
         opcode += x86CDisp8SHL[TTWLL];
       }
+
+      writer.emit32uLE(x);
+      writer.emit8(opcode.v);
     }
     else {
-      // Not EVEX, prepare `x` for VEX2 or VEX3:           x = [........|00L00000|0vvvv000|RXB0mmmm].
-      x |= ((opcode >> (kVSHR_W  + 8)) & 0x8000u) |         // [00000000|00L00000|Wvvvv000|RXB0mmmm].
-           ((opcode >> (kVSHR_PP + 8)) & 0x0300u) |         // [00000000|00L00000|Wvvvv0pp|RXB0mmmm].
-           ((x      >> 11            ) & 0x0400u) ;         // [00000000|00L00000|WvvvvLpp|RXB0mmmm].
+      // Not EVEX, prepare `x` for VEX2 or VEX3:           x = [........|00L00000|0vvvv000|RXBmmmmm].
+      x |= ((opcode >> (kVSHR_W  + 8)) & 0x8000u) |         // [00000000|00L00000|Wvvvv000|RXBmmmmm].
+           ((opcode >> (kVSHR_PP + 8)) & 0x0300u) |         // [00000000|00L00000|Wvvvv0pp|RXBmmmmm].
+           ((x      >> 11            ) & 0x0400u) ;         // [00000000|00L00000|WvvvvLpp|RXBmmmmm].
+      x |= x86GetForceEvex3MaskInLastBit(options);          // [x0000000|00L00000|WvvvvLpp|RXBmmmmm].
 
       // Clear a possible CDisp specified by EVEX.
       opcode &= ~Opcode::kCDSHL_Mask;
 
-      // Check if VEX3 is required / forced:                [........|........|x.......|.xx..x..].
-      if (x & 0x0008064u) {
+      // Check if VEX3 is required / forced:                   [x.......|........|x.......|.xxxxxx.].
+      if (x & 0x8000807Eu) {
         uint32_t xorMsk = x86VEXPrefix[x & 0xF] | (opcode << 24);
 
-        // Clear 'FORCE-VEX3' bit and all high bits.
-        x  = (x & (0x4 ^ 0xFFFF)) << 8;                     // [00000000|WvvvvLpp|RXB0m0mm|00000000].
+        // Clear all high bits.
+        x  = (x & 0xFFFF) << 8;                             // [00000000|WvvvvLpp|RXBmmmmm|00000000].
                                                             //            ____    ___
         x ^= xorMsk;                                        // [_OPCODE_|WvvvvLpp|RXBmmmmm|VEX3_XOP].
         writer.emit32uLE(x);
@@ -4944,6 +4977,7 @@ EmitDone:
   ERROR_HANDLER(InvalidPhysId)
   ERROR_HANDLER(InvalidSegment)
   ERROR_HANDLER(InvalidImmediate)
+  ERROR_HANDLER(InvalidBroadcast)
   ERROR_HANDLER(OperandSizeMismatch)
   ERROR_HANDLER(AmbiguousOperandSize)
   ERROR_HANDLER(NotConsecutiveRegs)

@@ -356,7 +356,8 @@ ASMJIT_FAVOR_SIZE Error InstInternal::validate(Arch arch, const BaseInst& inst, 
           }
           else {
             // If there is no size we implicitly calculate it so we can validate N in {1toN} properly.
-            memSize = commonInfo.hasAvx512B32() ? 4 : 8;
+            memSize = commonInfo.hasAvx512B64() ? 8 :
+                      commonInfo.hasAvx512B32() ? 4 : 2;
           }
 
           memSize <<= uint32_t(m.getBroadcast());

@@ -83,15 +83,14 @@ struct Opcode {
     //  * `MMMMM` field in VEX|EVEX|XOP instruction.
     //
     // AVX reserves 5 bits for `MMMMM` field, however AVX instructions only use 2 bits and XOP 3 bits. AVX-512 shrinks
-    // `MMMMM` field into `MM` so it's safe to assume that bits [4:2] of `MM` field won't be used in future extensions,
-    // which will most probably use EVEX encoding. AsmJit divides MM field into this layout:
+    // `MMMMM` field into `MMM` so it's safe to use [4:3] bits of `MMMMM` field for internal payload.
     //
-    // [1:0] - Used to describe 0F, 0F38 and 0F3A legacy prefix bytes and 2 bits of MM field.
-    // [2]   - Used to force 3-BYTE VEX prefix, but then cleared to zero before the prefix is emitted. This bit is not
-    //         used by any instruction so it can be used for any purpose by AsmJit. Also, this bit is used as an
-    //         extension to `MM` field describing 0F|0F38|0F3A to also describe 0F01 as used by some legacy instructions
-    //         (instructions not using VEX/EVEX prefix).
+    // AsmJit divides MMMMM field into this layout:
+    //
+    // [2:0] - Used to describe 0F, 0F38 and 0F3A legacy prefix bytes and 3 bits of MMMMM field for XOP/AVX/AVX512.
     // [3]   - Required by XOP instructions, so we use this bit also to indicate that this is a XOP opcode.
+    // [4]   - Used to force EVEX prefix - this bit is not used by any X86 instruction yet, so AsmJit uses it to
+    //         describe EVEX only instructions or sets its bit when user uses InstOptions::kX86_Evex to force EVEX.
     kMM_Shift      = 8,
     kMM_Mask       = 0x1Fu << kMM_Shift,
     kMM_00         = 0x00u << kMM_Shift,
@@ -100,8 +99,11 @@ struct Opcode {
     kMM_0F3A       = 0x03u << kMM_Shift,   // Described also as XOP.M3 in AMD manuals.
     kMM_0F01       = 0x04u << kMM_Shift,   // AsmJit way to describe 0F01 (never VEX/EVEX).
 
-    // `XOP` field is only used to force XOP prefix instead of VEX3 prefix. We know that only XOP encoding uses bit
-    // 0b1000 of MM field and that no VEX and EVEX instruction uses such bit, so we can use this bit to force XOP
+    kMM_MAP5       = 0x05u << kMM_Shift,   // EVEX.MAP5.
+    kMM_MAP6       = 0x06u << kMM_Shift,   // EVEX.MAP6.
+
+    // `XOP` field is only used to force XOP prefix instead of VEX3 prefix. We know XOP encodings always use 0b1000
+    // bit of MM field and that no VEX and EVEX instruction use such bit yet, so we can use this bit to force XOP
     // prefix to be emitted instead of VEX3 prefix. See `x86VEXPrefix` defined in `x86assembler.cpp`.
     kMM_XOP08      = 0x08u << kMM_Shift,   // XOP.M8.
     kMM_XOP09      = 0x09u << kMM_Shift,   // XOP.M9.
@@ -114,8 +116,6 @@ struct Opcode {
     // Force EVEX will force emitting EVEX prefix instead of VEX2|VEX3. EVEX-only instructions will have ForceEvex
     // always set, however. instructions that can be encoded by either VEX or EVEX prefix should not have ForceEvex
     // set.
-
-    kMM_ForceVex3  = 0x04u << kMM_Shift,   // Force 3-BYTE VEX prefix.
     kMM_ForceEvex  = 0x10u << kMM_Shift,   // Force 4-BYTE EVEX prefix.
 
     // FPU_2B - Second-Byte of the Opcode used by FPU
@@ -169,10 +169,12 @@ struct Opcode {
     kCDTT__        = kCDTT_None,
     kCDTT_FV       = kCDTT_ByLL,
     kCDTT_HV       = kCDTT_ByLL,
+    kCDTT_QV       = kCDTT_ByLL,
     kCDTT_FVM      = kCDTT_ByLL,
     kCDTT_T1S      = kCDTT_None,
     kCDTT_T1F      = kCDTT_None,
     kCDTT_T1_4X    = kCDTT_None,
+    kCDTT_T4X      = kCDTT_None,           // Alias to have only 3 letters.
     kCDTT_T2       = kCDTT_None,
     kCDTT_T4       = kCDTT_None,
     kCDTT_T8       = kCDTT_None,
@@ -180,8 +182,6 @@ struct Opcode {
     kCDTT_QVM      = kCDTT_ByLL,
     kCDTT_OVM      = kCDTT_ByLL,
     kCDTT_128      = kCDTT_None,
-
-    kCDTT_T4X      = kCDTT_T1_4X,          // Alias to have only 3 letters.
 
     // `O` Field in ModR/M (??:xxx:???)
     // --------------------------------
@@ -301,23 +301,31 @@ struct Opcode {
     k000F00 = kPP_00 | kMM_0F,             // '0F'
     k000F01 = kPP_00 | kMM_0F01,           // '0F01'
     k000F0F = kPP_00 | kMM_0F,             // '0F0F' - 3DNOW, equal to 0x0F, must have special encoding to take effect.
-    k000F38 = kPP_00 | kMM_0F38,           // '0F38'
-    k000F3A = kPP_00 | kMM_0F3A,           // '0F3A'
+    k000F38 = kPP_00 | kMM_0F38,           // 'NP.0F38'
+    k000F3A = kPP_00 | kMM_0F3A,           // 'NP.0F3A'
+    k00MAP5 = kPP_00 | kMM_MAP5,           // 'NP.MAP5'
+    k00MAP6 = kPP_00 | kMM_MAP6,           // 'NP.MAP5'
     k660000 = kPP_66 | kMM_00,             // '66'
-    k660F00 = kPP_66 | kMM_0F,             // '660F'
-    k660F01 = kPP_66 | kMM_0F01,           // '660F01'
-    k660F38 = kPP_66 | kMM_0F38,           // '660F38'
-    k660F3A = kPP_66 | kMM_0F3A,           // '660F3A'
+    k660F00 = kPP_66 | kMM_0F,             // '66.0F'
+    k660F01 = kPP_66 | kMM_0F01,           // '66.0F01'
+    k660F38 = kPP_66 | kMM_0F38,           // '66.0F38'
+    k660F3A = kPP_66 | kMM_0F3A,           // '66.0F3A'
+    k66MAP5 = kPP_66 | kMM_MAP5,           // '66.MAP5'
+    k66MAP6 = kPP_66 | kMM_MAP6,           // '66.MAP5'
     kF20000 = kPP_F2 | kMM_00,             // 'F2'
-    kF20F00 = kPP_F2 | kMM_0F,             // 'F20F'
-    kF20F01 = kPP_F2 | kMM_0F01,           // 'F20F01'
-    kF20F38 = kPP_F2 | kMM_0F38,           // 'F20F38'
-    kF20F3A = kPP_F2 | kMM_0F3A,           // 'F20F3A'
+    kF20F00 = kPP_F2 | kMM_0F,             // 'F2.0F'
+    kF20F01 = kPP_F2 | kMM_0F01,           // 'F2.0F01'
+    kF20F38 = kPP_F2 | kMM_0F38,           // 'F2.0F38'
+    kF20F3A = kPP_F2 | kMM_0F3A,           // 'F2.0F3A'
+    kF2MAP5 = kPP_F2 | kMM_MAP5,           // 'F2.MAP5'
+    kF2MAP6 = kPP_F2 | kMM_MAP6,           // 'F2.MAP5'
     kF30000 = kPP_F3 | kMM_00,             // 'F3'
-    kF30F00 = kPP_F3 | kMM_0F,             // 'F30F'
-    kF30F01 = kPP_F3 | kMM_0F01,           // 'F30F01'
-    kF30F38 = kPP_F3 | kMM_0F38,           // 'F30F38'
-    kF30F3A = kPP_F3 | kMM_0F3A,           // 'F30F3A'
+    kF30F00 = kPP_F3 | kMM_0F,             // 'F3.0F'
+    kF30F01 = kPP_F3 | kMM_0F01,           // 'F3.0F01'
+    kF30F38 = kPP_F3 | kMM_0F38,           // 'F3.0F38'
+    kF30F3A = kPP_F3 | kMM_0F3A,           // 'F3.0F3A'
+    kF3MAP5 = kPP_F3 | kMM_MAP5,           // 'F3.MAP5'
+    kF3MAP6 = kPP_F3 | kMM_MAP6,           // 'F3.MAP5'
     kFPU_00 = kPP_00 | kMM_00,             // '__' (FPU)
     kFPU_9B = kPP_9B | kMM_00,             // '9B' (FPU)
     kXOP_M8 = kPP_00 | kMM_XOP08,          // 'M8' (XOP)
@@ -400,9 +408,9 @@ struct Opcode {
     return (v | uint32_t(options)) >> kREX_Shift;
   }
 
-  inline uint32_t extractLLMM(InstOptions options) const noexcept {
+  inline uint32_t extractLLMMMMM(InstOptions options) const noexcept {
     uint32_t llMmmmm = uint32_t(v & (kLL_Mask | kMM_Mask));
-    uint32_t vexEvex = uint32_t(options & (InstOptions::kX86_Vex3 | InstOptions::kX86_Evex));
+    uint32_t vexEvex = uint32_t(options & InstOptions::kX86_Evex);
     return (llMmmmm | vexEvex) >> kMM_Shift;
   }
 
