@@ -211,6 +211,7 @@ Error releaseDualMapping(DualMapping* dm, size_t size) noexcept {
   dm->rw = nullptr;
   return kErrorOk;
 }
+
 #endif
 
 // Virtual Memory [Posix]

@@ -136,11 +136,16 @@ int main() {
   // Relocate to the base-address of the allocated memory.
   code.relocateToBase(uint64_t(uintptr_t(rxPtr)));
 
+  VirtMem::protectJitMemory(VirtMem::ProtectJitAccess::kReadWrite);
+
   // Copy the flattened code into `mem.rw`. There are two ways. You can either copy
   // everything manually by iterating over all sections or use `copyFlattenedData`.
   // This code is similar to what `copyFlattenedData(p, codeSize, 0)` would do:
   for (Section* section : code.sectionsByOrder())
     memcpy(static_cast<uint8_t*>(rwPtr) + size_t(section->offset()), section->data(), section->bufferSize());
+
+  VirtMem::protectJitMemory(VirtMem::ProtectJitAccess::kReadExecute);
+  VirtMem::flushInstructionCache(rwPtr, code.codeSize());
 
   // Execute the function and test whether it works.
   typedef size_t (*Func)(size_t idx);

@@ -16,6 +16,10 @@ using namespace asmjit;
 void benchmarkX86Emitters(uint32_t numIterations, bool testX86, bool testX64) noexcept;
 #endif
 
+#if !defined(ASMJIT_NO_ARM)
+void benchmarkA64Emitters(uint32_t numIterations);
+#endif
+
 int main(int argc, char* argv[]) {
   CmdLine cmdLine(argc, argv);
   uint32_t numIterations = 20000;
@@ -45,6 +49,13 @@ int main(int argc, char* argv[]) {
 
   if (testX86 || testX64)
     benchmarkX86Emitters(numIterations, testX86, testX64);
+#endif
+
+#if !defined(ASMJIT_NO_ARM)
+  bool testAArch64 = strcmp(arch, "all") == 0 || strcmp(arch, "aarch64") == 0;
+
+  if (testAArch64)
+    benchmarkA64Emitters(numIterations);
 #endif
 
   return 0;

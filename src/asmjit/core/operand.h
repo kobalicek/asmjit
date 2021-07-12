@@ -93,6 +93,9 @@ enum class RegType : uint8_t {
   //! Start of architecture dependent register types.
   kExtra = 17,
 
+  // X86 Specific Register Types
+  // ===========================
+
   //! Instruction pointer (RIP), only addressable in \ref x86::Mem in 64-bit targets.
   kX86_Rip = kPC,
   //! Low GPB register (AL, BL, CL, DL, ...).
@@ -127,6 +130,26 @@ enum class RegType : uint8_t {
   kX86_Bnd = kExtra + 5,
   //! TMM register (AMX_TILE)
   kX86_Tmm = kExtra + 6,
+
+  // ARM Specific Register Types
+  // ===========================
+
+  //! Program pointer (PC) register (AArch64).
+  kARM_PC = kPC,
+  //! 32-bit general purpose register (R or W).
+  kARM_GpW = kGp32,
+  //! 64-bit general purpose register (X).
+  kARM_GpX = kGp64,
+  //! 8-bit view of VFP/ASIMD register (B).
+  kARM_VecB = kVec8,
+  //! 16-bit view of VFP/ASIMD register (H).
+  kARM_VecH = kVec16,
+  //! 32-bit view of VFP/ASIMD register (S).
+  kARM_VecS = kVec32,
+  //! 64-bit view of VFP/ASIMD register (D).
+  kARM_VecD = kVec64,
+  //! 128-bit view of VFP/ASIMD register (Q|V).
+  kARM_VecV = kVec128,
 
   //! Maximum value of `RegType`.
   kMaxValue = 31

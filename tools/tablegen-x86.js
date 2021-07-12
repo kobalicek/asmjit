@@ -514,6 +514,7 @@ class X86TableGen extends core.TableGen {
       this.addInst({
         id                : 0,             // Instruction id (numeric value).
         name              : name,          // Instruction name.
+        displayName       : displayName,   // Instruction name to display.
         enum              : enum_,         // Instruction enum without `kId` prefix.
         dbInsts           : dbInsts,       // All dbInsts returned from asmdb query.
         encoding          : encoding,      // Instruction encoding.

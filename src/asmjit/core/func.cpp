@@ -14,7 +14,7 @@
   #include "../x86/x86func_p.h"
 #endif
 
-#ifdef ASMJIT_BUILD_ARM
+#if !defined(ASMJIT_NO_ARM)
   #include "../arm/armfunc_p.h"
 #endif
 
@@ -31,7 +31,7 @@ ASMJIT_FAVOR_SIZE Error CallConv::init(CallConvId ccId, const Environment& envir
     return x86::FuncInternal::initCallConv(*this, ccId, environment);
 #endif
 
-#ifdef ASMJIT_BUILD_ARM
+#if !defined(ASMJIT_NO_ARM)
   if (environment.isFamilyARM())
     return arm::FuncInternal::initCallConv(*this, ccId, environment);
 #endif
@@ -73,7 +73,7 @@ ASMJIT_FAVOR_SIZE Error FuncDetail::init(const FuncSignature& signature, const E
     return x86::FuncInternal::initFuncDetail(*this, signature, registerSize);
 #endif
 
-#ifdef ASMJIT_BUILD_ARM
+#if !defined(ASMJIT_NO_ARM)
   if (environment.isFamilyARM())
     return arm::FuncInternal::initFuncDetail(*this, signature, registerSize);
 #endif

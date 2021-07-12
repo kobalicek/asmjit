@@ -160,6 +160,21 @@ exports.Lang = Lang;
 class StringUtils {
   static asString(x) { return String(x); }
 
+  static countOf(s, pattern) {
+    if (!pattern)
+      FAIL(`Pattern cannot be empty`);
+
+    var n = 0;
+    var pos = 0;
+
+    while ((pos = s.indexOf(pattern, pos)) >= 0) {
+      n++;
+      pos += pattern.length;
+    }
+
+    return n;
+  }
+
   static capitalize(s) {
     s = String(s);
     return !s ? s : s[0].toUpperCase() + s.substr(1);
@@ -258,15 +273,28 @@ class StringUtils {
     return lines.join("\n");
   }
 
+  static extract(s, start, end) {
+    var iStart = s.indexOf(start);
+    var iEnd   = s.indexOf(end);
+
+    if (iStart === -1)
+      FAIL(`StringUtils.extract(): Couldn't locate start mark '${start}'`);
+
+    if (iEnd === -1)
+      FAIL(`StringUtils.extract(): Couldn't locate end mark '${end}'`);
+
+    return s.substring(iStart + start.length, iEnd).trim();
+  }
+
   static inject(s, start, end, code) {
     var iStart = s.indexOf(start);
     var iEnd   = s.indexOf(end);
 
     if (iStart === -1)
-      FAIL(`Utils.inject(): Couldn't locate start mark '${start}'`);
+      FAIL(`StringUtils.inject(): Couldn't locate start mark '${start}'`);
 
     if (iEnd === -1)
-      FAIL(`Utils.inject(): Couldn't locate end mark '${end}'`);
+      FAIL(`StringUtils.inject(): Couldn't locate end mark '${end}'`);
 
     var nIndent = 0;
     while (iStart > 0 && s[iStart-1] === " ") {
@@ -875,14 +903,14 @@ class NameTable extends Task {
     var maxLength = 0;
     for (var i = 0; i < insts.length; i++) {
       const inst = insts[i];
-      instNames.add(inst.name);
-      maxLength = Math.max(maxLength, inst.name.length);
+      instNames.add(inst.displayName);
+      maxLength = Math.max(maxLength, inst.displayName.length);
     }
     instNames.index();
 
     for (var i = 0; i < insts.length; i++) {
       const inst = insts[i];
-      const name = inst.name;
+      const name = inst.displayName;
       const nameIndex = instNames.getIndex(name);
 
       const index = name.charCodeAt(0) - 'a'.charCodeAt(0);

@@ -43,6 +43,8 @@ Error JitRuntime::_add(void** dst, CodeHolder* code) noexcept {
   // Recalculate the final code size and shrink the memory we allocated for it
   // in case that some relocations didn't require records in an address table.
   size_t codeSize = code->codeSize();
+  if (codeSize < estimatedCodeSize)
+    _allocator.shrink(rx, codeSize);
 
   if (codeSize < estimatedCodeSize)
     _allocator.shrink(rx, codeSize);

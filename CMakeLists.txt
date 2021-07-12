@@ -55,6 +55,10 @@ if (NOT DEFINED ASMJIT_NO_X86)
   set(ASMJIT_NO_X86 FALSE)
 endif()
 
+if (NOT DEFINED ASMJIT_NO_ARM)
+  set(ASMJIT_NO_ARM FALSE)
+endif()
+
 if (NOT DEFINED ASMJIT_NO_FOREIGN)
   set(ASMJIT_NO_FOREIGN FALSE)
 endif()
@@ -78,6 +82,7 @@ set(ASMJIT_EMBED           "${ASMJIT_EMBED}"           CACHE BOOL "Embed 'asmjit
 set(ASMJIT_STATIC          "${ASMJIT_STATIC}"          CACHE BOOL "Build 'asmjit' library as static")
 set(ASMJIT_SANITIZE        "${ASMJIT_SANITIZE}"        CACHE STRING "Build with sanitizers: 'address', 'undefined', etc...")
 set(ASMJIT_NO_X86          "${ASMJIT_NO_X86}"          CACHE BOOL "Disable X86/X64 backend")
+set(ASMJIT_NO_ARM          "${ASMJIT_NO_ARM}"          CACHE BOOL "Disable AArch64 backend")
 set(ASMJIT_NO_FOREIGN      "${ASMJIT_NO_FOREIGN}"      CACHE BOOL "Disable all foreign architectures (builds only host backend)")
 set(ASMJIT_NO_NATVIS       "${ASMJIT_NO_NATVIS}"       CACHE BOOL "Disable natvis support (embedding asmjit.natvis in PDB)")
 set(ASMJIT_NO_CUSTOM_FLAGS "${ASMJIT_NO_CUSTOM_FLAGS}" CACHE BOOL "Disable extra compilation flags added by AsmJit to its targets")
@@ -262,6 +267,7 @@ endif()
 foreach(build_option ASMJIT_STATIC
                      # AsmJit backends selection.
                      ASMJIT_NO_X86
+                     ASMJIT_NO_ARM
                      ASMJIT_NO_FOREIGN
                      # AsmJit features selection.
                      ASMJIT_NO_DEPRECATED
@@ -380,6 +386,34 @@ set(ASMJIT_SRC_LIST
   asmjit/core/zonetree.h
   asmjit/core/zonevector.cpp
   asmjit/core/zonevector.h
+
+  asmjit/arm.h
+  asmjit/arm/armarchtraits_p.h
+  asmjit/arm/armformatter.cpp
+  asmjit/arm/armformatter_p.h
+  asmjit/arm/armfunc.cpp
+  asmjit/arm/armfunc_p.h
+  asmjit/arm/armglobals.h
+  asmjit/arm/armoperand.h
+  asmjit/arm/a64assembler.cpp
+  asmjit/arm/a64assembler.h
+  asmjit/arm/a64builder.cpp
+  asmjit/arm/a64builder.h
+  asmjit/arm/a64compiler.cpp
+  asmjit/arm/a64compiler.h
+  asmjit/arm/a64emithelper.cpp
+  asmjit/arm/a64emithelper_p.h
+  asmjit/arm/a64emitter.h
+  asmjit/arm/a64globals.h
+  asmjit/arm/a64instapi.cpp
+  asmjit/arm/a64instapi_p.h
+  asmjit/arm/a64instdb.cpp
+  asmjit/arm/a64instdb.h
+  asmjit/arm/a64operand.cpp
+  asmjit/arm/a64operand.h
+  asmjit/arm/a64rapass.cpp
+  asmjit/arm/a64rapass_p.h
+  asmjit/arm/a64utils.h
 
   asmjit/x86.h
   asmjit/x86/x86archtraits_p.h
@@ -504,9 +538,10 @@ if (NOT ASMJIT_EMBED)
 
     asmjit_add_target(asmjit_test_assembler TEST
                       SOURCES    test/asmjit_test_assembler.cpp
+                                 test/asmjit_test_assembler.h
+                                 test/asmjit_test_assembler_a64.cpp
                                  test/asmjit_test_assembler_x64.cpp
                                  test/asmjit_test_assembler_x86.cpp
-                                 test/asmjit_test_assembler.h
                       LIBRARIES  asmjit::asmjit
                       CFLAGS     ${ASMJIT_PRIVATE_CFLAGS}
                       CFLAGS_DBG ${ASMJIT_PRIVATE_CFLAGS_DBG}
@@ -514,6 +549,7 @@ if (NOT ASMJIT_EMBED)
 
     asmjit_add_target(asmjit_test_perf EXECUTABLE
                       SOURCES    test/asmjit_test_perf.cpp
+                                 test/asmjit_test_perf_a64.cpp
                                  test/asmjit_test_perf_x86.cpp
                       SOURCES    test/asmjit_test_perf.h
                       LIBRARIES  asmjit::asmjit
@@ -550,8 +586,9 @@ if (NOT ASMJIT_EMBED)
       endif()
       asmjit_add_target(asmjit_test_compiler TEST
                         SOURCES    test/asmjit_test_compiler.cpp
-                                   test/asmjit_test_compiler_x86.cpp
                                    test/asmjit_test_compiler.h
+                                   test/asmjit_test_compiler_a64.cpp
+                                   test/asmjit_test_compiler_x86.cpp
                         LIBRARIES  asmjit::asmjit
                         CFLAGS     ${ASMJIT_PRIVATE_CFLAGS} ${sse2_flags}
                         CFLAGS_DBG ${ASMJIT_PRIVATE_CFLAGS_DBG}

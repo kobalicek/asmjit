@@ -67,6 +67,9 @@ namespace asmjit {
 //! Disables X86/X64 backends.
 #define ASMJIT_NO_X86
 
+//! Disables AArch64 backend.
+#define ASMJIT_NO_ARM
+
 //! Disables non-host backends entirely (useful for JIT compilers to minimize the library size).
 #define ASMJIT_NO_FOREIGN
 
@@ -193,6 +196,10 @@ namespace asmjit {
 #if defined(ASMJIT_NO_FOREIGN)
   #if !ASMJIT_ARCH_X86 && !defined(ASMJIT_NO_X86)
     #define ASMJIT_NO_X86
+  #endif
+
+  #if !ASMJIT_ARCH_ARM && !defined(ASMJIT_NO_ARM)
+    #define ASMJIT_NO_ARM
   #endif
 #endif
 

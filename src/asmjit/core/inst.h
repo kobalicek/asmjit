@@ -142,7 +142,20 @@ enum class InstOptions : uint32_t {
   //! Force REX prefix (X64 only).
   kX86_Rex = 0x40000000u,
   //! Invalid REX prefix (set by X86 or when AH|BH|CH|DH regs are used on X64).
-  kX86_InvalidRex = 0x80000000u
+  kX86_InvalidRex = 0x80000000u,
+
+  // ARM & AArch86 Options
+  // ---------------------
+
+  //! Condition code flag shift
+  kARM_CondFlagShift = 27,
+  //! Condition code flag shift
+  kARM_CondFlagMask = 1u << kARM_CondFlagShift,
+
+  //! Condition code value shift.
+  kARM_CondCodeShift = 28u,
+  //! Condition code value mask.
+  kARM_CondCodeMask = 0xFu << kARM_CondCodeShift
 };
 ASMJIT_DEFINE_ENUM_FLAGS(InstOptions)
 
@@ -220,6 +233,11 @@ public:
   //! \name Instruction Options
   //! \{
 
+  template<uint32_t kFieldMask>
+  inline uint32_t getOptionField() const noexcept {
+    return (uint32_t(_options) & kFieldMask) >> Support::ConstCTZ<kFieldMask>::value;
+  }
+
   inline InstOptions options() const noexcept { return _options; }
   inline bool hasOption(InstOptions option) const noexcept { return Support::test(_options, option); }
   inline void setOptions(InstOptions options) noexcept { _options = options; }
@@ -238,6 +256,14 @@ public:
   inline void setExtraReg(const BaseReg& reg) noexcept { _extraReg.init(reg); }
   inline void setExtraReg(const RegOnly& reg) noexcept { _extraReg.init(reg); }
   inline void resetExtraReg() noexcept { _extraReg.reset(); }
+
+  //! \}
+
+  //! \name ARM Specific
+  //! \{
+
+  inline bool hasARMCondFlag() const noexcept { return hasOption(InstOptions::kARM_CondFlagMask); }
+  inline uint32_t armCondCode() const noexcept { return getOptionField<uint32_t(InstOptions::kARM_CondCodeMask)>(); }
 
   //! \}
 };

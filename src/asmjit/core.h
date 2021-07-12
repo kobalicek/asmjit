@@ -1799,6 +1799,14 @@ namespace asmjit {
 //! \brief X86/X64 backend.
 
 
+//! \defgroup asmjit_arm ARM Backend
+//! \brief ARM backend.
+
+
+//! \defgroup asmjit_a64 AArch64 Backend
+//! \brief AArch64 backend.
+
+
 //! \cond INTERNAL
 //! \defgroup asmjit_ra RA
 //! \brief Register allocator internals.

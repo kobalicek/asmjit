@@ -43,7 +43,7 @@ enum class ShiftOp {
   //! \note Not available in AArch64 mode.
   kROR = 0x03u,
 
-  //! Rotate right with carry operation (encoded as `kShiftROR` with zero).
+  //! Rotate right with carry operation (encoded as `ShiftOp::kROR` with zero).
   //!
   //! \note Not available in AArch64 mode.
   kRRX = 0x04u,
